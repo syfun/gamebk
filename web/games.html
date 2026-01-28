@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GameBK - Games</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="grid"></div>
+  </div>
+
+  <header class="hero">
+    <div class="hero-top">
+      <div>
+        <p class="kicker">GameBK</p>
+        <h1>Games Control</h1>
+        <p class="sub">Create and update game configurations, then jump into details.</p>
+      </div>
+      <div class="api-box">
+        <label>Service Status</label>
+        <div class="row">
+          <button id="btnPing" class="ghost">Health Check</button>
+          <span id="healthStatus" class="status">-</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Games</h2>
+        <p>Create, update, and list game configurations.</p>
+      </div>
+      <div class="panel-body">
+        <div class="card wide">
+          <div class="card-row">
+            <div>
+              <h3>Game List</h3>
+              <p>Open details page to manage backups.</p>
+            </div>
+            <div class="row">
+              <button id="btnNewGame" class="ghost">New Game</button>
+              <button id="btnListGames" class="ghost">Refresh</button>
+            </div>
+          </div>
+          <div id="gamesTable" class="table"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="modal" id="modalGame" aria-hidden="true">
+      <div class="modal-backdrop" data-close="1"></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-head">
+          <h3 id="modalTitle">Create Game</h3>
+          <button class="icon-btn" id="modalClose">×</button>
+        </div>
+        <form id="formGame" class="form">
+          <input type="hidden" name="mode" value="create" />
+          <input type="hidden" name="id" value="" />
+          <label>Name</label>
+          <input name="name" placeholder="Skyrim" required />
+          <label>Game Path</label>
+          <input name="game_path" placeholder="D:\\Games\\Skyrim\\Saves" required />
+          <label>Backup Root</label>
+          <input name="backup_root" placeholder="D:\\Backups\\Skyrim" required />
+          <button type="submit" id="modalSubmit">Create</button>
+        </form>
+      </div>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Response</h2>
+        <p>Latest API result payload.</p>
+      </div>
+      <div class="panel-body">
+        <pre id="responseBox" class="code">Waiting for request...</pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="games.js"></script>
+</body>
+</html>

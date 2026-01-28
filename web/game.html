@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GameBK - Detail</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+      <div class="grid"></div>
+    </div>
+
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <p class="kicker">GameBK</p>
+          <h1>Game Detail</h1>
+          <p class="sub">
+            Backup, restore, and audit snapshots for a single game.
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="panel" id="gameDetailPanel">
+        <div class="panel-head">
+          <h2>Game Detail</h2>
+          <p>Manage backups and restores for the selected game.</p>
+        </div>
+        <div class="panel-body grid-2">
+          <div class="card">
+            <h3>Selected Game</h3>
+            <div id="gameDetailInfo" class="detail-box">Loading game...</div>
+            <div class="row" style="margin-top: 12px">
+              <button id="btnBack" class="ghost">Back to Games</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Create Backup</h3>
+            <form id="formBackup" class="form">
+              <label>Backup Name (required, allow null)</label>
+              <input name="name" placeholder="20260128_213045" />
+              <div class="helper">
+                Leave empty to send null and use default timestamp.
+              </div>
+              <button type="submit">Backup</button>
+            </form>
+          </div>
+        <div class="card">
+          <h3>Restore Latest</h3>
+          <form id="formRestoreLatest" class="form">
+            <button type="submit">Restore Latest</button>
+          </form>
+        </div>
+        <div class="card wide">
+          <div class="card-row">
+            <div>
+              <h3>Backups List</h3>
+                <p>Backup history for this game.</p>
+              </div>
+              <button id="btnListBackups" class="ghost">Refresh</button>
+            </div>
+            <div id="backupsTable" class="table"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Response</h2>
+          <p>Latest API result payload.</p>
+        </div>
+        <div class="panel-body">
+          <pre id="responseBox" class="code">Waiting for request...</pre>
+        </div>
+      </section>
+    </main>
+    
+    <!-- 添加弹窗反馈容器 -->
+    <div id="restoreFeedback" class="feedback-box" style="display: none;"></div>
+
+    <script src="game.js"></script>
+  </body>
+</html>

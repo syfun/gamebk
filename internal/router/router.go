@@ -13,6 +13,8 @@ import (
 func New(cfg config.Config, db *sqlx.DB) *gin.Engine {
 	r := gin.Default()
 
+	r.Static("/ui", "./web")
+
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
