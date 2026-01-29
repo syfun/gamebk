@@ -1,4 +1,3 @@
-const responseBox = document.getElementById("responseBox");
 const backupsTable = document.getElementById("backupsTable");
 const gameDetailInfo = document.getElementById("gameDetailInfo");
 const restoreFeedback = document.getElementById("restoreFeedback");  // 弹框反馈元素
@@ -26,9 +25,6 @@ async function request(method, path, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
-function showResponse(result) {
-  responseBox.textContent = JSON.stringify(result, null, 2);
-}
 
 function renderTable(target, rows, columns) {
   if (!rows || rows.length === 0) {
@@ -53,7 +49,8 @@ function getField(form, name) {
 async function handleBackup(e) {
   e.preventDefault();
   if (!selectedGame) {
-    showResponse({ ok: false, status: 400, data: { error: "missing game" } });
+    showNotification("未选择游戏。", "error");
+    showNotification("Missing game selection.", "error");
     return;
   }
   const form = e.currentTarget;
@@ -62,11 +59,18 @@ async function handleBackup(e) {
   if (nameInput.trim() !== "") {
     payload.name = nameInput.trim();
   }
-  const res = await request("POST", `/api/v1/games/${selectedGame.id}/backup`, payload);
-  showResponse(res);
+  showNotification("正在创建备份...", "pending");
+  try {
+    const res = await request("POST", `/api/v1/games/${selectedGame.id}/backup`, payload);
   if (res.ok) {
-    form.reset();
-    await fetchBackups();
+      form.reset();
+      await fetchBackups();
+      showNotification("备份创建成功！", "success");
+    } else {
+      showNotification(`备份失败：${res.data?.message || "未知错误"}`, "error");
+    }
+  } catch (err) {
+    showNotification(`备份失败：${err?.message || "网络错误"}`, "error");
   }
 }
 
@@ -74,32 +78,43 @@ async function handleRestoreLatest(e) {
   e.preventDefault();
   if (!selectedGame) return;
   
-  showNotification('Restoring latest backup...', 'pending');
+  showNotification("正在恢复最新备份...", "pending");
   
   const res = await request("POST", `/api/v1/games/${selectedGame.id}/restore/latest`);
-  showResponse(res);
-  
   // 根据响应显示成功或失败的消息
   if (res.ok) {
-    showNotification('Successfully restored latest backup!', 'success');
+    showNotification("最新备份恢复成功！", "success");
   } else {
-    showNotification(`Failed to restore latest backup: ${res.data?.message || 'Unknown error'}`, 'error');
+    showNotification(`恢复最新备份失败：${res.data?.message || "未知错误"}`, "error");
   }
 }
 
 async function handleRestoreById(backupId) {
   if (!selectedGame) return;
   
-  showNotification(`Restoring backup ID: ${backupId}...`, 'pending');
+  showNotification(`正在恢复备份 ID：${backupId}...`, "pending");
   
   const res = await request("POST", `/api/v1/games/${selectedGame.id}/restore/${backupId}`);
-  showResponse(res);
-  
   // 根据响应显示成功或失败的消息
   if (res.ok) {
-    showNotification('Successfully restored backup!', 'success');
+    showNotification("备份恢复成功！", "success");
   } else {
-    showNotification(`Failed to restore backup: ${res.data?.message || 'Unknown error'}`, 'error');
+    showNotification(`恢复备份失败：${res.data?.message || "未知错误"}`, "error");
+  }
+}
+
+async function handleDeleteBackup(backupId) {
+  if (!selectedGame) return;
+  if (!window.confirm("确认删除该备份？将同时删除备份文件与记录。")) {
+    return;
+  }
+  showNotification(`正在删除备份 ID：${backupId}...`, "pending");
+  const res = await request("DELETE", `/api/v1/games/${selectedGame.id}/backups/${backupId}`);
+  if (res.ok) {
+    showNotification("备份已删除。", "success");
+    await fetchBackups();
+  } else {
+    showNotification(`删除失败：${res.data?.message || "未知错误"}`, "error");
   }
 }
 
@@ -148,7 +163,6 @@ function hideNotification() {
 
 async function fetchGame(id) {
   const res = await request("GET", "/api/v1/games");
-  showResponse(res);
   if (!res.ok || !res.data || !res.data.data) return null;
   return res.data.data.find((g) => String(g.id) === String(id)) || null;
 }
@@ -156,21 +170,21 @@ async function fetchGame(id) {
 async function fetchBackups() {
   if (!selectedGame) return;
   const res = await request("GET", `/api/v1/games/${selectedGame.id}/backups`);
-  showResponse(res);
   if (res.ok && res.data && res.data.data) {
     const rows = res.data.data.map((b) => ({
       ...b,
-      actions: `<button class="btn-inline" data-restore="${b.id}">Restore</button>`,
+      actions: `<button class="btn-inline" data-restore="${b.id}">恢复</button> <button class="btn-inline danger" data-delete="${b.id}">删除</button>`,
     }));
     renderTable(backupsTable, rows, [
       { key: "id", label: "ID" },
-      { key: "name", label: "Name" },
-      { key: "backup_path", label: "Path" },
-      { key: "created_at", label: "Created" },
-      { key: "size_bytes", label: "Size" },
-      { key: "actions", label: "Action" },
+      { key: "name", label: "名称" },
+      { key: "backup_path", label: "备份路径" },
+      { key: "created_at", label: "创建时间" },
+      { key: "size_bytes", label: "大小" },
+      { key: "actions", label: "操作" },
     ]);
     wireRestoreButtons(rows);
+    wireDeleteButtons(rows);
   } else {
     renderTable(backupsTable, []);
   }
@@ -223,6 +237,15 @@ function wireRestoreButtons(rows) {
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-restore");
       handleRestoreById(id);
+    });
+  });
+}
+
+function wireDeleteButtons(rows) {
+  backupsTable.querySelectorAll("button[data-delete]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-delete");
+      handleDeleteBackup(id);
     });
   });
 }

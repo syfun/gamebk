@@ -1,4 +1,3 @@
-const responseBox = document.getElementById("responseBox");
 const gamesTable = document.getElementById("gamesTable");
 const healthStatus = document.getElementById("healthStatus");
 const modalGame = document.getElementById("modalGame");
@@ -28,9 +27,6 @@ async function request(method, path, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
-function showResponse(result) {
-  responseBox.textContent = JSON.stringify(result, null, 2);
-}
 
 function renderTable(target, rows, columns) {
   if (!rows || rows.length === 0) {
@@ -59,8 +55,8 @@ function openModal(mode, game) {
   getField(formGame, "name").value = game?.name ?? "";
   getField(formGame, "game_path").value = game?.game_path ?? "";
   getField(formGame, "backup_root").value = game?.backup_root ?? "";
-  modalTitle.textContent = mode === "create" ? "Create Game" : "Update Game";
-  modalSubmit.textContent = mode === "create" ? "Create" : "Update";
+  modalTitle.textContent = mode === "create" ? "新建游戏" : "编辑游戏";
+  modalSubmit.textContent = mode === "create" ? "创建" : "更新";
   modalGame.classList.add("show");
   modalGame.setAttribute("aria-hidden", "false");
 }
@@ -89,12 +85,10 @@ async function handleSubmitGame(e) {
     if (payload.game_path) patch.game_path = payload.game_path;
     if (payload.backup_root) patch.backup_root = payload.backup_root;
     if (Object.keys(patch).length === 0) {
-      showResponse({ ok: false, status: 400, data: { error: "no fields to update" } });
       return;
     }
     res = await request("PATCH", `/api/v1/games/${id}`, patch);
   }
-  showResponse(res);
   if (res.ok) {
     form.reset();
     closeModal();
@@ -104,19 +98,18 @@ async function handleSubmitGame(e) {
 
 async function fetchGames() {
   const res = await request("GET", "/api/v1/games");
-  showResponse(res);
   if (res.ok && res.data && res.data.data) {
     const rows = res.data.data.map((g) => ({
       ...g,
-      actions: `<a class="link" href="game.html?id=${g.id}">Open</a> <button class="btn-inline" data-edit="${g.id}">Edit</button>`,
+      actions: `<button class="btn-inline" data-open="${g.id}">打开</button> <button class="btn-inline" data-edit="${g.id}">编辑</button>`,
     }));
     renderTable(gamesTable, rows, [
       { key: "id", label: "ID" },
-      { key: "name", label: "Name" },
-      { key: "game_path", label: "Game Path" },
-      { key: "backup_root", label: "Backup Root" },
-      { key: "last_backup_at", label: "Last Backup" },
-      { key: "actions", label: "Details" },
+      { key: "name", label: "名称" },
+      { key: "game_path", label: "存档路径" },
+      { key: "backup_root", label: "备份根目录" },
+      { key: "last_backup_at", label: "最近备份时间" },
+      { key: "actions", label: "操作" },
     ]);
     wireLinks(res.data.data);
   } else {
@@ -125,6 +118,12 @@ async function fetchGames() {
 }
 
 function wireLinks(games) {
+  gamesTable.querySelectorAll("button[data-open]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-open");
+      window.location.href = `game.html?id=${id}`;
+    });
+  });
   gamesTable.querySelectorAll("button[data-edit]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.getAttribute("data-edit");
@@ -136,7 +135,6 @@ function wireLinks(games) {
 
 async function handleHealth() {
   const res = await request("GET", "/healthz");
-  showResponse(res);
   if (res.ok) {
     healthStatus.textContent = "OK";
     healthStatus.style.color = "#7CFF6B";

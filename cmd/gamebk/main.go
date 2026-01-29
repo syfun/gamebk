@@ -11,10 +11,6 @@ import (
 func main() {
 	cfg := config.Load()
 
-	if err := db.Migrate(cfg, "migrations"); err != nil {
-		log.Fatalf("db migrate failed: %v", err)
-	}
-
 	dbConn, err := db.Open(cfg)
 	if err != nil {
 		log.Fatalf("db open failed: %v", err)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GameBK - Games</title>
+  <title>GameBK - 游戏列表</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,13 +17,13 @@
     <div class="hero-top">
       <div>
         <p class="kicker">GameBK</p>
-        <h1>Games Control</h1>
-        <p class="sub">Create and update game configurations, then jump into details.</p>
+        <h1>游戏配置管理</h1>
+        <p class="sub">创建和更新游戏配置，随后进入详情管理备份。</p>
       </div>
       <div class="api-box">
-        <label>Service Status</label>
+        <label>服务状态</label>
         <div class="row">
-          <button id="btnPing" class="ghost">Health Check</button>
+          <button id="btnPing" class="ghost">健康检查</button>
           <span id="healthStatus" class="status">-</span>
         </div>
       </div>
@@ -33,19 +33,19 @@
   <main class="content">
     <section class="panel">
       <div class="panel-head">
-        <h2>Games</h2>
-        <p>Create, update, and list game configurations.</p>
+        <h2>游戏</h2>
+        <p>创建、更新并查看游戏配置列表。</p>
       </div>
       <div class="panel-body">
         <div class="card wide">
           <div class="card-row">
             <div>
-              <h3>Game List</h3>
-              <p>Open details page to manage backups.</p>
+              <h3>游戏列表</h3>
+              <p>进入详情页管理备份与恢复。</p>
             </div>
             <div class="row">
-              <button id="btnNewGame" class="ghost">New Game</button>
-              <button id="btnListGames" class="ghost">Refresh</button>
+              <button id="btnNewGame" class="ghost">新建游戏</button>
+              <button id="btnListGames" class="ghost">刷新</button>
             </div>
           </div>
           <div id="gamesTable" class="table"></div>
@@ -57,32 +57,23 @@
       <div class="modal-backdrop" data-close="1"></div>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-head">
-          <h3 id="modalTitle">Create Game</h3>
+          <h3 id="modalTitle">新建游戏</h3>
           <button class="icon-btn" id="modalClose">×</button>
         </div>
         <form id="formGame" class="form">
           <input type="hidden" name="mode" value="create" />
           <input type="hidden" name="id" value="" />
-          <label>Name</label>
+          <label>名称</label>
           <input name="name" placeholder="Skyrim" required />
-          <label>Game Path</label>
+          <label>存档路径</label>
           <input name="game_path" placeholder="D:\\Games\\Skyrim\\Saves" required />
-          <label>Backup Root</label>
+          <label>备份根目录</label>
           <input name="backup_root" placeholder="D:\\Backups\\Skyrim" required />
-          <button type="submit" id="modalSubmit">Create</button>
+          <button type="submit" id="modalSubmit">创建</button>
         </form>
       </div>
     </div>
 
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Response</h2>
-        <p>Latest API result payload.</p>
-      </div>
-      <div class="panel-body">
-        <pre id="responseBox" class="code">Waiting for request...</pre>
-      </div>
-    </section>
   </main>
 
   <script src="games.js"></script>

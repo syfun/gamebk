@@ -32,4 +32,5 @@ go.work.sum
 # .vscode/
 data/
 test-data/
+dist/
 

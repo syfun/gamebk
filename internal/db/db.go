@@ -4,29 +4,33 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/jmoiron/sqlx"
-	_ "modernc.org/sqlite"
+	"go.etcd.io/bbolt"
 
 	"gamebk/internal/config"
 )
 
-func Open(cfg config.Config) (*sqlx.DB, error) {
+const (
+	bucketMeta    = "meta"
+	bucketGames   = "games"
+	bucketBackups = "backups"
+)
+
+func Open(cfg config.Config) (*bbolt.DB, error) {
 	if cfg.DBPath == "" {
 		return nil, fmt.Errorf("db path is empty")
 	}
-
 	if err := ensureDir(cfg.DBPath); err != nil {
 		return nil, err
 	}
 
-	dsn := DSN(cfg)
-	db, err := sqlx.Open("sqlite3", dsn)
+	db, err := bbolt.Open(cfg.DBPath, 0o600, &bbolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.Ping(); err != nil {
+	if err := initBuckets(db); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -34,8 +38,19 @@ func Open(cfg config.Config) (*sqlx.DB, error) {
 	return db, nil
 }
 
-func DSN(cfg config.Config) string {
-	return fmt.Sprintf("file:%s?_pragma=foreign_keys(ON)&_busy_timeout=5000", cfg.DBPath)
+func initBuckets(db *bbolt.DB) error {
+	return db.Update(func(tx *bbolt.Tx) error {
+		if _, err := tx.CreateBucketIfNotExists([]byte(bucketMeta)); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte(bucketGames)); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte(bucketBackups)); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func ensureDir(dbPath string) error {

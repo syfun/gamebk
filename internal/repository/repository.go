@@ -1,14 +1,14 @@
 package repository
 
-import "github.com/jmoiron/sqlx"
+import "go.etcd.io/bbolt"
 
 type Repository struct {
-	DB *sqlx.DB
+	DB      *bbolt.DB
 	Games   *GameRepository
 	Backups *BackupRepository
 }
 
-func New(db *sqlx.DB) *Repository {
+func New(db *bbolt.DB) *Repository {
 	return &Repository{
 		DB:      db,
 		Games:   &GameRepository{db: db},

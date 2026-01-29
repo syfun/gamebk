@@ -2,71 +2,110 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
+	"sort"
 
-	"github.com/jmoiron/sqlx"
+	"go.etcd.io/bbolt"
 
 	"gamebk/internal/model"
 )
 
 type BackupRepository struct {
-	db *sqlx.DB
+	db *bbolt.DB
 }
 
 func (r *BackupRepository) Create(ctx context.Context, b *model.Backup) error {
-	q := `
-		INSERT INTO backups (game_id, name, backup_path, size_bytes)
-		VALUES (:game_id, :name, :backup_path, :size_bytes)
-	`
-	res, err := r.db.NamedExecContext(ctx, q, b)
-	if err != nil {
-		return err
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return err
-	}
-	b.ID = id
-	return nil
+	b.CreatedAt = now()
+	return r.db.Update(func(tx *bbolt.Tx) error {
+		meta := tx.Bucket([]byte(bucketMeta))
+		backups := tx.Bucket([]byte(bucketBackups))
+		if meta == nil || backups == nil {
+			return bbolt.ErrBucketNotFound
+		}
+		next := nextID(meta.Get([]byte(keyNextBackupID)))
+		meta.Put([]byte(keyNextBackupID), putUint64(nil, next))
+		b.ID = int64(next)
+
+		data, err := json.Marshal(b)
+		if err != nil {
+			return err
+		}
+		return backups.Put(putUint64(nil, next), data)
+	})
 }
 
 func (r *BackupRepository) ListByGameID(ctx context.Context, gameID int64) ([]model.Backup, error) {
-	q := `
-		SELECT id, game_id, name, backup_path, created_at, size_bytes
-		FROM backups
-		WHERE game_id = ?
-		ORDER BY created_at DESC
-	`
-	var backups []model.Backup
-	if err := r.db.SelectContext(ctx, &backups, q, gameID); err != nil {
+	var out []model.Backup
+	if err := r.db.View(func(tx *bbolt.Tx) error {
+		backups := tx.Bucket([]byte(bucketBackups))
+		if backups == nil {
+			return bbolt.ErrBucketNotFound
+		}
+		return backups.ForEach(func(k, v []byte) error {
+			var b model.Backup
+			if err := json.Unmarshal(v, &b); err != nil {
+				return err
+			}
+			if b.GameID == gameID {
+				out = append(out, b)
+			}
+			return nil
+		})
+	}); err != nil {
 		return nil, err
 	}
-	return backups, nil
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return out, nil
 }
 
 func (r *BackupRepository) GetByID(ctx context.Context, id int64) (*model.Backup, error) {
-	q := `
-		SELECT id, game_id, name, backup_path, created_at, size_bytes
-		FROM backups
-		WHERE id = ?
-	`
-	var b model.Backup
-	if err := r.db.GetContext(ctx, &b, q, id); err != nil {
+	var b *model.Backup
+	key := putUint64(nil, uint64(id))
+	if err := r.db.View(func(tx *bbolt.Tx) error {
+		backups := tx.Bucket([]byte(bucketBackups))
+		if backups == nil {
+			return bbolt.ErrBucketNotFound
+		}
+		v := backups.Get(key)
+		if v == nil {
+			return ErrNotFound
+		}
+		var obj model.Backup
+		if err := json.Unmarshal(v, &obj); err != nil {
+			return err
+		}
+		b = &obj
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	return &b, nil
+	return b, nil
 }
 
 func (r *BackupRepository) GetLatestByGameID(ctx context.Context, gameID int64) (*model.Backup, error) {
-	q := `
-		SELECT id, game_id, name, backup_path, created_at, size_bytes
-		FROM backups
-		WHERE game_id = ?
-		ORDER BY created_at DESC
-		LIMIT 1
-	`
-	var b model.Backup
-	if err := r.db.GetContext(ctx, &b, q, gameID); err != nil {
+	list, err := r.ListByGameID(ctx, gameID)
+	if err != nil {
 		return nil, err
 	}
-	return &b, nil
+	if len(list) == 0 {
+		return nil, ErrNotFound
+	}
+	return &list[0], nil
+}
+
+func (r *BackupRepository) DeleteByID(ctx context.Context, id int64) error {
+	return r.db.Update(func(tx *bbolt.Tx) error {
+		backups := tx.Bucket([]byte(bucketBackups))
+		if backups == nil {
+			return bbolt.ErrBucketNotFound
+		}
+		key := putUint64(nil, uint64(id))
+		if backups.Get(key) == nil {
+			return ErrNotFound
+		}
+		return backups.Delete(key)
+	})
 }

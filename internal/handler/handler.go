@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"os"
@@ -11,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jmoiron/sqlx"
+	"go.etcd.io/bbolt"
 
 	"gamebk/internal/backup"
 	"gamebk/internal/model"
@@ -19,11 +18,13 @@ import (
 )
 
 type Handler struct {
+	DB   *bbolt.DB
 	Repo *repository.Repository
 }
 
-func New(db *sqlx.DB) *Handler {
+func New(db *bbolt.DB) *Handler {
 	return &Handler{
+		DB:   db,
 		Repo: repository.New(db),
 	}
 }
@@ -75,7 +76,7 @@ func (h *Handler) UpdateGame(c *gin.Context) {
 
 	existing, err := h.Repo.Games.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
 			return
 		}
@@ -147,7 +148,7 @@ func (h *Handler) BackupGame(c *gin.Context) {
 
 	game, err := h.Repo.Games.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
 			return
 		}
@@ -206,7 +207,7 @@ func (h *Handler) RestoreLatest(c *gin.Context) {
 
 	game, err := h.Repo.Games.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
 			return
 		}
@@ -216,7 +217,7 @@ func (h *Handler) RestoreLatest(c *gin.Context) {
 
 	b, err := h.Repo.Backups.GetLatestByGameID(c.Request.Context(), game.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "backup not found", nil)
 			return
 		}
@@ -246,7 +247,7 @@ func (h *Handler) RestoreByID(c *gin.Context) {
 
 	game, err := h.Repo.Games.GetByID(c.Request.Context(), gameID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
 			return
 		}
@@ -256,7 +257,7 @@ func (h *Handler) RestoreByID(c *gin.Context) {
 
 	b, err := h.Repo.Backups.GetByID(c.Request.Context(), backupID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "backup not found", nil)
 			return
 		}
@@ -313,7 +314,7 @@ func (h *Handler) ListBackups(c *gin.Context) {
 
 	_, err = h.Repo.Games.GetByID(c.Request.Context(), gameID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, repository.ErrNotFound) {
 			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
 			return
 		}
@@ -328,4 +329,52 @@ func (h *Handler) ListBackups(c *gin.Context) {
 	}
 
 	respondOK(c, backups)
+}
+
+func (h *Handler) DeleteBackup(c *gin.Context) {
+	gameID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || gameID <= 0 {
+		respondError(c, http.StatusBadRequest, "bad_request", "invalid game id", nil)
+		return
+	}
+	backupID, err := strconv.ParseInt(c.Param("backupId"), 10, 64)
+	if err != nil || backupID <= 0 {
+		respondError(c, http.StatusBadRequest, "bad_request", "invalid backup id", nil)
+		return
+	}
+
+	_, err = h.Repo.Games.GetByID(c.Request.Context(), gameID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to load game", err.Error())
+		return
+	}
+
+	b, err := h.Repo.Backups.GetByID(c.Request.Context(), backupID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			respondError(c, http.StatusNotFound, "not_found", "backup not found", nil)
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to load backup", err.Error())
+		return
+	}
+	if b.GameID != gameID {
+		respondError(c, http.StatusBadRequest, "bad_request", "backup does not belong to game", nil)
+		return
+	}
+
+	if err := os.RemoveAll(b.BackupPath); err != nil {
+		respondError(c, http.StatusInternalServerError, "io_error", "failed to delete backup files", err.Error())
+		return
+	}
+	if err := h.Repo.Backups.DeleteByID(c.Request.Context(), backupID); err != nil {
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to delete backup", err.Error())
+		return
+	}
+
+	respondOK(c, gin.H{"deleted": backupID})
 }
