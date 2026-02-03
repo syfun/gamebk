@@ -39,6 +39,7 @@ func New(cfg config.Config, db *bbolt.DB) *gin.Engine {
 		api.GET("/games", h.ListGames)
 		api.GET("/games/:id/backups", h.ListBackups)
 		api.DELETE("/games/:id/backups/:backupId", h.DeleteBackup)
+		api.DELETE("/games/:id/backups", h.DeleteAllBackups)
 	}
 
 	return r

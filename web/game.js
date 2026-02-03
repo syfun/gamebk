@@ -1,6 +1,6 @@
 const backupsTable = document.getElementById("backupsTable");
 const gameDetailInfo = document.getElementById("gameDetailInfo");
-const restoreFeedback = document.getElementById("restoreFeedback");  // 弹框反馈元素
+const restoreFeedback = document.getElementById("restoreFeedback"); // 弹框反馈元素
 
 let selectedGame = null;
 
@@ -25,7 +25,6 @@ async function request(method, path, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
-
 function renderTable(target, rows, columns) {
   if (!rows || rows.length === 0) {
     target.innerHTML = '<div class="helper">No records.</div>';
@@ -33,10 +32,11 @@ function renderTable(target, rows, columns) {
   }
   const thead = columns.map((c) => `<th>${c.label}</th>`).join("");
   const tbody = rows
-    .map((row) =>
-      `<tr>${columns
-        .map((c) => `<td>${row[c.key] ?? ""}</td>`)
-        .join("")}</tr>`
+    .map(
+      (row) =>
+        `<tr>${columns
+          .map((c) => `<td>${row[c.key] ?? ""}</td>`)
+          .join("")}</tr>`,
     )
     .join("");
   target.innerHTML = `<table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
@@ -61,8 +61,12 @@ async function handleBackup(e) {
   }
   showNotification("正在创建备份...", "pending");
   try {
-    const res = await request("POST", `/api/v1/games/${selectedGame.id}/backup`, payload);
-  if (res.ok) {
+    const res = await request(
+      "POST",
+      `/api/v1/games/${selectedGame.id}/backup`,
+      payload,
+    );
+    if (res.ok) {
       form.reset();
       await fetchBackups();
       showNotification("备份创建成功！", "success");
@@ -77,29 +81,41 @@ async function handleBackup(e) {
 async function handleRestoreLatest(e) {
   e.preventDefault();
   if (!selectedGame) return;
-  
+
   showNotification("正在恢复最新备份...", "pending");
-  
-  const res = await request("POST", `/api/v1/games/${selectedGame.id}/restore/latest`);
+
+  const res = await request(
+    "POST",
+    `/api/v1/games/${selectedGame.id}/restore/latest`,
+  );
   // 根据响应显示成功或失败的消息
   if (res.ok) {
     showNotification("最新备份恢复成功！", "success");
   } else {
-    showNotification(`恢复最新备份失败：${res.data?.message || "未知错误"}`, "error");
+    showNotification(
+      `恢复最新备份失败：${res.data?.message || "未知错误"}`,
+      "error",
+    );
   }
 }
 
 async function handleRestoreById(backupId) {
   if (!selectedGame) return;
-  
+
   showNotification(`正在恢复备份 ID：${backupId}...`, "pending");
-  
-  const res = await request("POST", `/api/v1/games/${selectedGame.id}/restore/${backupId}`);
+
+  const res = await request(
+    "POST",
+    `/api/v1/games/${selectedGame.id}/restore/${backupId}`,
+  );
   // 根据响应显示成功或失败的消息
   if (res.ok) {
     showNotification("备份恢复成功！", "success");
   } else {
-    showNotification(`恢复备份失败：${res.data?.message || "未知错误"}`, "error");
+    showNotification(
+      `恢复备份失败：${res.data?.message || "未知错误"}`,
+      "error",
+    );
   }
 }
 
@@ -109,12 +125,48 @@ async function handleDeleteBackup(backupId) {
     return;
   }
   showNotification(`正在删除备份 ID：${backupId}...`, "pending");
-  const res = await request("DELETE", `/api/v1/games/${selectedGame.id}/backups/${backupId}`);
+  const res = await request(
+    "DELETE",
+    `/api/v1/games/${selectedGame.id}/backups/${backupId}`,
+  );
   if (res.ok) {
     showNotification("备份已删除。", "success");
     await fetchBackups();
   } else {
     showNotification(`删除失败：${res.data?.message || "未知错误"}`, "error");
+  }
+}
+
+async function handleDeleteAllBackups() {
+  if (!selectedGame) return;
+  if (
+    !window.confirm(
+      "确认删除该游戏的所有备份？将同时删除所有备份文件与记录！此操作不可撤销。",
+    )
+  ) {
+    return;
+  }
+
+  showNotification("正在删除所有备份...", "pending");
+
+  const res = await request(
+    "DELETE",
+    `/api/v1/games/${selectedGame.id}/backups`,
+  );
+  if (res.ok) {
+    showNotification(
+      `成功删除 ${res.data?.deleted_backups || 0} 个备份！`,
+      "success",
+    );
+    await fetchBackups();
+    // 刷新游戏详情以更新最后备份时间
+    const game = await fetchGame(selectedGame.id);
+    setGameDetail(game);
+  } else {
+    showNotification(
+      `删除所有备份失败：${res.data?.message || "未知错误"}`,
+      "error",
+    );
   }
 }
 
@@ -124,29 +176,29 @@ function showNotification(message, type) {
   if (restoreFeedback.firstChild) {
     restoreFeedback.removeChild(restoreFeedback.firstChild);
   }
-  
+
   // 创建通知元素
-  const notification = document.createElement('div');
+  const notification = document.createElement("div");
   notification.className = `feedback ${type}`;
-  
+
   // 添加内容
   notification.innerHTML = `
     <span>${message}</span>
     <button class="close-btn">&times;</button>
   `;
-  
+
   // 添加到容器
   restoreFeedback.appendChild(notification);
-  restoreFeedback.style.display = 'block';
-  
+  restoreFeedback.style.display = "block";
+
   // 绑定关闭事件
-  const closeBtn = notification.querySelector('.close-btn');
-  closeBtn.addEventListener('click', () => {
+  const closeBtn = notification.querySelector(".close-btn");
+  closeBtn.addEventListener("click", () => {
     hideNotification();
   });
-  
+
   // 如果是成功或错误类型，3秒后自动隐藏
-  if (type === 'success' || type === 'error') {
+  if (type === "success" || type === "error") {
     setTimeout(() => {
       hideNotification();
     }, 3000);
@@ -155,7 +207,7 @@ function showNotification(message, type) {
 
 // 隐藏通知弹框
 function hideNotification() {
-  restoreFeedback.style.display = 'none';
+  restoreFeedback.style.display = "none";
   if (restoreFeedback.firstChild) {
     restoreFeedback.removeChild(restoreFeedback.firstChild);
   }
@@ -190,8 +242,6 @@ async function fetchBackups() {
   }
 }
 
-
-
 function setGameDetail(game) {
   selectedGame = game;
   if (!game) {
@@ -221,9 +271,18 @@ async function init() {
 }
 
 function wire() {
-  document.getElementById("formBackup").addEventListener("submit", handleBackup);
-  document.getElementById("formRestoreLatest").addEventListener("submit", handleRestoreLatest);
-  document.getElementById("btnListBackups").addEventListener("click", fetchBackups);
+  document
+    .getElementById("formBackup")
+    .addEventListener("submit", handleBackup);
+  document
+    .getElementById("formRestoreLatest")
+    .addEventListener("submit", handleRestoreLatest);
+  document
+    .getElementById("btnListBackups")
+    .addEventListener("click", fetchBackups);
+  document
+    .getElementById("btnDeleteAllBackups")
+    .addEventListener("click", handleDeleteAllBackups);
   document.getElementById("btnBack").addEventListener("click", () => {
     window.location.href = "games.html";
   });

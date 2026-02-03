@@ -378,3 +378,57 @@ func (h *Handler) DeleteBackup(c *gin.Context) {
 
 	respondOK(c, gin.H{"deleted": backupID})
 }
+
+// DeleteAllBackups 删除某个游戏的所有备份
+func (h *Handler) DeleteAllBackups(c *gin.Context) {
+	gameID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || gameID <= 0 {
+		respondError(c, http.StatusBadRequest, "bad_request", "invalid game id", nil)
+		return
+	}
+
+	// 验证游戏是否存在
+	game, err := h.Repo.Games.GetByID(c.Request.Context(), gameID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			respondError(c, http.StatusNotFound, "not_found", "game not found", nil)
+			return
+		}
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to load game", err.Error())
+		return
+	}
+
+	// 获取该游戏的所有备份
+	backups, err := h.Repo.Backups.ListByGameID(c.Request.Context(), gameID)
+	if err != nil {
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to list backups", err.Error())
+		return
+	}
+
+	// 删除所有备份文件
+	for _, b := range backups {
+		if err := os.RemoveAll(b.BackupPath); err != nil {
+			respondError(c, http.StatusInternalServerError, "io_error", "failed to delete backup files", err.Error())
+			return
+		}
+	}
+
+	// 从数据库中删除所有备份记录
+	if err := h.Repo.Backups.DeleteAllByGameID(c.Request.Context(), gameID); err != nil {
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to delete backups", err.Error())
+		return
+	}
+
+	// 重置游戏的最后备份时间
+	if err := h.Repo.Games.UpdateLastBackupAt(c.Request.Context(), gameID, time.Time{}); err != nil {
+		respondError(c, http.StatusInternalServerError, "db_error", "failed to update game", err.Error())
+		return
+	}
+
+	respondOK(c, gin.H{
+		"game_id":         gameID,
+		"game_name":       game.Name,
+		"deleted_backups": len(backups),
+		"message":         "all backups deleted successfully",
+	})
+}

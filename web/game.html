@@ -18,9 +18,7 @@
         <div>
           <p class="kicker">GameBK</p>
           <h1>游戏详情</h1>
-          <p class="sub">
-            备份、恢复并查看当前游戏的历史记录。
-          </p>
+          <p class="sub">备份、恢复并查看当前游戏的历史记录。</p>
         </div>
       </div>
     </header>
@@ -44,35 +42,37 @@
             <form id="formBackup" class="form">
               <label>备份名称（必填，允许为 null）</label>
               <input name="name" placeholder="20260128_213045" />
-              <div class="helper">
-                留空将发送 null 并使用默认时间戳。
-              </div>
+              <div class="helper">留空将发送 null 并使用默认时间戳。</div>
               <button type="submit">开始备份</button>
             </form>
           </div>
-        <div class="card">
-          <h3>恢复最新备份</h3>
-          <form id="formRestoreLatest" class="form">
-            <button type="submit">恢复最新</button>
-          </form>
-        </div>
-        <div class="card wide">
-          <div class="card-row">
-            <div>
-              <h3>备份列表</h3>
+          <div class="card">
+            <h3>恢复最新备份</h3>
+            <form id="formRestoreLatest" class="form">
+              <button type="submit">恢复最新</button>
+            </form>
+          </div>
+          <div class="card wide">
+            <div class="card-row">
+              <div>
+                <h3>备份列表</h3>
                 <p>当前游戏的备份历史。</p>
               </div>
-              <button id="btnListBackups" class="ghost">刷新</button>
+              <div class="row">
+                <button id="btnListBackups" class="ghost">刷新</button>
+                <button id="btnDeleteAllBackups" class="ghost danger">
+                  删除所有备份
+                </button>
+              </div>
             </div>
             <div id="backupsTable" class="table"></div>
           </div>
         </div>
       </section>
-
     </main>
-    
+
     <!-- 添加弹窗反馈容器 -->
-    <div id="restoreFeedback" class="feedback-box" style="display: none;"></div>
+    <div id="restoreFeedback" class="feedback-box" style="display: none"></div>
 
     <script src="game.js"></script>
   </body>

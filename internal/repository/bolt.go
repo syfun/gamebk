@@ -34,6 +34,11 @@ func putUint64(dst []byte, v uint64) []byte {
 	return dst
 }
 
+// getUint64 从字节数组中获取uint64值
+func getUint64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
+}
+
 func now() time.Time {
 	return time.Now().UTC()
 }

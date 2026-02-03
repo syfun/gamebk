@@ -109,3 +109,37 @@ func (r *BackupRepository) DeleteByID(ctx context.Context, id int64) error {
 		return backups.Delete(key)
 	})
 }
+
+// DeleteAllByGameID 删除指定游戏的所有备份记录
+func (r *BackupRepository) DeleteAllByGameID(ctx context.Context, gameID int64) error {
+	return r.db.Update(func(tx *bbolt.Tx) error {
+		backups := tx.Bucket([]byte(bucketBackups))
+		if backups == nil {
+			return bbolt.ErrBucketNotFound
+		}
+
+		// 收集所有需要删除的备份ID
+		var ids []uint64
+		if err := backups.ForEach(func(k, v []byte) error {
+			var b model.Backup
+			if err := json.Unmarshal(v, &b); err != nil {
+				return err
+			}
+			if b.GameID == gameID {
+				ids = append(ids, getUint64(k))
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// 删除所有收集到的备份
+		for _, id := range ids {
+			if err := backups.Delete(putUint64(nil, id)); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
