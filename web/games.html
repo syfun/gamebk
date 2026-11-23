@@ -2,9 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
   <title>GameBK - 游戏列表</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="games.css" />
 </head>
 <body>
   <div class="bg">
@@ -13,76 +14,63 @@
     <div class="grid"></div>
   </div>
 
-  <header class="hero">
+  <header class="hero games-hero">
     <div class="hero-top">
       <div>
         <p class="kicker">GameBK</p>
-        <h1>游戏配置管理</h1>
-        <p class="sub">创建和更新游戏配置，随后进入详情管理备份。</p>
+        <h1>游戏列表</h1>
       </div>
-      <div class="api-box">
-        <label>服务状态</label>
-        <div class="row">
-          <button id="btnPing" class="ghost">健康检查</button>
-          <span id="healthStatus" class="status">-</span>
+      <div class="games-toolbar">
+        <button id="btnMoreGames" type="button" class="ghost games-more" aria-expanded="false" aria-controls="gamesActions">更多</button>
+        <div id="gamesActions" class="games-actions">
+          <button id="btnNewGame" type="button" class="ghost">新建游戏</button>
+          <button id="btnListGames" type="button" class="ghost">刷新</button>
+          <button id="btnPing" type="button" class="ghost">健康检查</button>
         </div>
       </div>
     </div>
   </header>
 
   <main class="content">
-    <section class="panel">
-      <div class="panel-head">
-        <h2>游戏</h2>
-        <p>创建、更新并查看游戏配置列表。</p>
+    <section class="panel games-panel" aria-label="游戏配置">
+      <p id="healthStatus" class="list-status" aria-live="polite"></p>
+      <p id="gamesSaveStatus" class="list-status" aria-live="polite"></p>
+      <button id="btnResumeGame" type="button" class="ghost" hidden>继续填写</button>
+      <p id="gamesLoading" class="list-status" role="status"></p>
+      <div id="gamesError" class="list-state" hidden>
+        <p id="gamesErrorMessage" class="error-message" role="alert"></p>
+        <button id="btnRetryGames" type="button" class="ghost">重试</button>
       </div>
-      <div class="panel-body">
-        <div class="card wide">
-          <div class="card-row">
-            <div>
-              <h3>游戏列表</h3>
-              <p>进入详情页管理备份与恢复。</p>
-            </div>
-            <div class="row">
-              <button id="btnNewGame" class="ghost">新建游戏</button>
-              <button id="btnListGames" class="ghost">刷新</button>
-            </div>
-          </div>
-          <p id="gamesLoading" class="list-status" role="status"></p>
-          <div id="gamesError" class="list-state" hidden>
-            <p id="gamesErrorMessage" class="error-message" role="alert"></p>
-            <button id="btnRetryGames" type="button" class="ghost">重试</button>
-          </div>
-          <section id="gamesEmpty" class="list-state" aria-labelledby="gamesEmptyTitle" hidden>
-            <h4 id="gamesEmptyTitle">还没有游戏</h4>
-            <button id="btnNewGameEmpty" type="button">新建游戏</button>
-          </section>
-          <div id="gamesTable" class="table" hidden></div>
-        </div>
-      </div>
+      <section id="gamesEmpty" class="list-state" aria-labelledby="gamesEmptyTitle" hidden>
+        <h2 id="gamesEmptyTitle">还没有游戏</h2>
+        <button id="btnNewGameEmpty" type="button">新建游戏</button>
+      </section>
+      <ul id="gamesCards" class="games-cards" aria-label="游戏列表" role="list" hidden></ul>
+      <div id="gamesTable" class="table" hidden></div>
     </section>
 
-    <div class="modal" id="modalGame" aria-hidden="true">
-      <div class="modal-backdrop" data-close="1"></div>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <dialog id="modalGame" class="games-dialog" aria-labelledby="modalTitle">
+      <div class="games-dialog-body">
         <div class="modal-head">
           <h3 id="modalTitle">新建游戏</h3>
-          <button class="icon-btn" id="modalClose">×</button>
+          <button type="button" class="icon-btn" id="modalClose" aria-label="关闭">×</button>
         </div>
         <form id="formGame" class="form">
           <input type="hidden" name="mode" value="create" />
           <input type="hidden" name="id" value="" />
           <label for="gameName">名称</label>
-          <input id="gameName" name="name" placeholder="Skyrim" required />
+          <input id="gameName" name="name" placeholder="Skyrim" required autofocus />
           <label for="gamePath">存档路径</label>
-          <input id="gamePath" name="game_path" placeholder="D:\\Games\\Skyrim\\Saves" required />
+          <input id="gamePath" name="game_path" placeholder="D:\Games\Skyrim\Saves" spellcheck="false" autocapitalize="off" required />
           <label for="backupRoot">备份根目录</label>
-          <input id="backupRoot" name="backup_root" placeholder="D:\\Backups\\Skyrim" required />
+          <input id="backupRoot" name="backup_root" placeholder="D:\Backups\Skyrim" spellcheck="false" autocapitalize="off" required />
+          <p id="gameFormStatus" class="list-status" role="status"></p>
+          <p id="gameFormError" class="list-status error-message" role="alert"></p>
+          <button id="btnVerifyGames" type="button" class="ghost" hidden>刷新列表核对</button>
           <button type="submit" id="modalSubmit">创建</button>
         </form>
       </div>
-    </div>
-
+    </dialog>
   </main>
 
   <script type="module" src="games.js"></script>
