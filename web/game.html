@@ -1,79 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GameBK - 游戏详情</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="game.css" />
   </head>
-  <body>
-    <div class="bg">
+  <body class="game-page">
+    <div class="bg" aria-hidden="true">
       <div class="orb orb-a"></div>
       <div class="orb orb-b"></div>
       <div class="grid"></div>
     </div>
 
-    <header class="hero">
-      <div class="hero-top">
-        <div>
-          <p class="kicker">GameBK</p>
-          <h1>游戏详情</h1>
-          <p class="sub">备份、恢复并查看当前游戏的历史记录。</p>
-        </div>
-      </div>
-    </header>
-
     <main class="content">
-      <section class="panel" id="gameDetailPanel">
-        <div class="panel-head">
-          <h2>游戏详情</h2>
-          <p>管理当前游戏的备份与恢复。</p>
+      <header class="game-heading">
+        <nav class="game-nav" aria-label="游戏详情导航">
+          <a href="games.html" class="game-back"><span aria-hidden="true">←</span> 返回游戏列表</a>
+          <details id="gameMenu" class="game-menu" hidden>
+            <summary>更多</summary>
+            <div class="game-menu-content">
+              <button type="button" id="btnEditGame" class="ghost" data-game-write>编辑配置</button>
+              <button type="button" id="btnDeleteAllBackups" class="ghost danger" data-game-write>
+                删除全部备份
+              </button>
+              <dl class="game-paths">
+                <dt>存档路径</dt>
+                <dd id="gamePath"></dd>
+                <dt>备份根目录</dt>
+                <dd id="backupRoot"></dd>
+              </dl>
+            </div>
+          </details>
+        </nav>
+        <h1 id="gameTitle">游戏详情</h1>
+        <p id="gameLoading" class="list-status" role="status"></p>
+        <p id="gameError" class="error-message" role="alert" hidden></p>
+        <button type="button" id="btnRetryGame" class="ghost" hidden>重新加载游戏</button>
+        <div class="game-actions">
+          <button type="button" id="btnBackupNow" data-game-write disabled>立即备份</button>
+          <button type="button" id="btnRestoreLatest" class="ghost" data-game-write disabled>
+            恢复最新
+          </button>
+          <button type="button" id="btnBackupCustom" class="ghost" data-game-write disabled>
+            自定义名称
+          </button>
         </div>
-        <div class="panel-body grid-2">
-          <div class="card">
-            <h3>当前选择</h3>
-            <div id="gameDetailInfo" class="detail-box">正在加载游戏...</div>
-            <div class="row" style="margin-top: 12px">
-              <button id="btnBack" class="ghost">返回游戏列表</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3>创建备份</h3>
-            <form id="formBackup" class="form">
-              <label>备份名称（必填，允许为 null）</label>
-              <input name="name" placeholder="20260128_213045" />
-              <div class="helper">留空将发送 null 并使用默认时间戳。</div>
-              <button type="submit">开始备份</button>
-            </form>
-          </div>
-          <div class="card">
-            <h3>恢复最新备份</h3>
-            <form id="formRestoreLatest" class="form">
-              <button type="submit">恢复最新</button>
-            </form>
-          </div>
-          <div class="card wide">
-            <div class="card-row">
-              <div>
-                <h3>备份列表</h3>
-                <p>当前游戏的备份历史。</p>
-              </div>
-              <div class="row">
-                <button id="btnListBackups" class="ghost">刷新</button>
-                <button id="btnDeleteAllBackups" class="ghost danger">
-                  删除所有备份
-                </button>
-              </div>
-            </div>
-            <div id="backupsTable" class="table"></div>
-          </div>
+      </header>
+
+      <section class="panel game-history" aria-labelledby="backupHistoryTitle">
+        <div class="history-heading">
+          <h2 id="backupHistoryTitle">备份历史</h2>
+          <button type="button" id="btnListBackups" class="ghost" disabled>刷新</button>
+        </div>
+        <p id="historyLoading" class="list-status" role="status"></p>
+        <div id="historyError" class="list-state" hidden>
+          <p id="historyErrorMessage" class="error-message" role="alert"></p>
+          <button type="button" id="btnRetryHistory" class="ghost">重试</button>
+        </div>
+        <p id="historyEmpty" class="list-state" hidden>还没有备份</p>
+        <div id="historyRecords" hidden>
+          <div id="backupCards" class="backup-cards"></div>
+          <div id="backupsTable" class="table"></div>
         </div>
       </section>
     </main>
 
-    <!-- 添加弹窗反馈容器 -->
-    <div id="restoreFeedback" class="feedback-box" style="display: none"></div>
+    <template id="backupCardTemplate">
+      <article class="backup-card">
+        <h3></h3>
+        <dl class="backup-facts">
+          <div><dt>创建时间</dt><dd><time></time></dd></div>
+          <div><dt>大小</dt><dd class="backup-size"></dd></div>
+        </dl>
+        <div class="backup-card-actions">
+          <details class="backup-more">
+            <summary>更多</summary>
+            <div class="backup-more-content">
+              <p>完整路径</p>
+              <p class="backup-path"></p>
+            </div>
+          </details>
+        </div>
+      </article>
+    </template>
 
-    <script src="game.js"></script>
+    <dialog id="backupDialog" class="game-dialog" aria-labelledby="backupDialogTitle">
+      <h2 id="backupDialogTitle">自定义名称</h2>
+      <form id="formBackup" class="form">
+        <label for="backupName">备份名称</label>
+        <input id="backupName" name="name" aria-describedby="backupNameHelp" data-game-write autofocus />
+        <p id="backupNameHelp" class="helper">留空时按服务端时间命名。</p>
+        <div class="dialog-actions">
+          <button type="button" class="ghost" data-close-dialog data-game-write>取消</button>
+          <button type="submit" data-game-write>开始备份</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="gameConfigDialog" class="game-dialog" aria-labelledby="gameConfigDialogTitle">
+      <h2 id="gameConfigDialogTitle">编辑配置</h2>
+      <form id="formGameConfig" class="form">
+        <label for="configGameName">名称</label>
+        <input id="configGameName" name="name" required data-game-write autofocus />
+        <label for="configGamePath">存档路径</label>
+        <input id="configGamePath" name="game_path" required data-game-write />
+        <label for="configBackupRoot">备份根目录</label>
+        <input id="configBackupRoot" name="backup_root" required data-game-write />
+        <div class="dialog-actions">
+          <button type="button" class="ghost" data-close-dialog data-game-write>取消</button>
+          <button type="submit" data-game-write>保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="writeFeedback" class="game-feedback" hidden>
+      <p id="writeMessage" role="status"></p>
+      <button type="button" id="refreshAfterWrite" class="ghost" hidden>刷新数据</button>
+      <button type="button" id="dismissFeedback" class="ghost">关闭</button>
+    </div>
+
+    <script type="module" src="game.js"></script>
   </body>
 </html>
