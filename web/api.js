@@ -24,5 +24,7 @@ export async function request(method, path, body) {
 
 export function responseError(result) {
   if (result.networkError) return "无法连接服务";
-  return result.data?.message || `服务返回 HTTP ${result.status}`;
+  const message = result.data?.message || `服务返回 HTTP ${result.status}`;
+  const details = result.data?.details;
+  return typeof details === "string" && details.trim() ? `${message}（${details.trim()}）` : message;
 }

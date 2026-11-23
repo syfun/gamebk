@@ -22,6 +22,7 @@ const backupDialog = document.getElementById("backupDialog");
 const formBackup = document.getElementById("formBackup");
 const gameConfigDialog = document.getElementById("gameConfigDialog");
 const formGameConfig = document.getElementById("formGameConfig");
+const gameConfigReview = document.getElementById("gameConfigReview");
 const writeFeedback = document.getElementById("writeFeedback");
 const writeMessage = document.getElementById("writeMessage");
 const refreshAfterWrite = document.getElementById("refreshAfterWrite");
@@ -83,16 +84,17 @@ async function runGameWrite({
   if (writeFeedback.parentElement !== feedbackContainer) feedbackContainer.append(writeFeedback);
   showFeedback(pending, "pending");
   let succeeded = false;
+  const reviewTarget = dialog === gameConfigDialog ? "配置" : "记录";
   try {
     const result = await request(method, `/api/v1/games/${selectedGame.id}${path}`, body);
     if (result.networkError) {
-      showFeedback("连接中断，操作结果待核对。请刷新数据并核对记录。", "unknown");
+      showFeedback(`连接中断，操作结果待核对。请刷新数据并核对${reviewTarget}。`, "unknown");
     } else if (!result.ok) {
       const backupMissing = result.status === 404 && result.data?.message === "backup not found";
       const reason = backupMissing ? "所选备份已不存在。请刷新数据并重新选择。" : responseError(result);
       showFeedback(`${failure}。${reason}`, "error", backupMissing);
     } else if (!result.data?.data) {
-      showFeedback("服务响应无法读取，操作结果待核对。请刷新数据并核对记录。", "unknown");
+      showFeedback(`服务响应无法读取，操作结果待核对。请刷新数据并核对${reviewTarget}。`, "unknown");
     } else {
       showFeedback(onSuccess(result.data.data), "success");
       succeeded = true;
@@ -123,9 +125,12 @@ function createBackup(name, dialog) {
 
 function openGameConfig() {
   if (!selectedGame || readingGame || writing) return;
-  for (const field of ["name", "game_path", "backup_root"]) {
-    formGameConfig.elements[field].value = selectedGame[field];
+  if (gameConfigReview.hidden) {
+    for (const field of ["name", "game_path", "backup_root"]) {
+      formGameConfig.elements[field].value = selectedGame[field];
+    }
   }
+  gameConfigReview.hidden = true;
   gameMenu.open = false;
   gameMenu.querySelector("summary").focus();
   gameConfigDialog.showModal();
@@ -383,6 +388,7 @@ formBackup.addEventListener("submit", (event) => {
 });
 wireWriteDialog(gameConfigDialog);
 document.getElementById("btnEditGame").addEventListener("click", openGameConfig);
+document.getElementById("resumeGameConfig").addEventListener("click", openGameConfig);
 formGameConfig.addEventListener("submit", saveGameConfig);
 wireWriteDialog(backupActionDialog);
 restoreLatest.addEventListener("click", restoreLatestBackup);
@@ -391,8 +397,13 @@ refreshHistory.addEventListener("click", fetchBackups);
 document.getElementById("btnRetryHistory").addEventListener("click", fetchBackups);
 retryGame.addEventListener("click", loadGame);
 refreshAfterWrite.addEventListener("click", () => {
-  writeFeedback.closest("dialog")?.close();
+  const dialog = writeFeedback.closest("dialog");
+  dialog?.close();
   writeFeedback.hidden = true;
+  if (dialog === gameConfigDialog) {
+    gameConfigReview.hidden = false;
+    gameConfigReview.querySelector("p").focus();
+  }
   void loadGame();
 });
 dismissFeedback.addEventListener("click", () => { writeFeedback.hidden = true; });

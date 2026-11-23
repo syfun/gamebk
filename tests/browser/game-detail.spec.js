@@ -82,6 +82,35 @@ test.describe("手机游戏详情", () => {
     await expect(page.getByRole("status").filter({ hasText: "备份成功" })).toContainText(data.name);
   });
 
+  test("同名备份失败时显示目录冲突并可重新填写名称", async ({ page, gamebk }) => {
+    const gameName = "远征记录";
+    const duplicateName = "重复名称";
+    const destination = join(gamebk.backupRoot, duplicateName);
+    await mkdir(destination);
+    await writeFile(join(destination, "slot.dat"), "existing backup");
+    await writeFile(join(gamebk.saveDir, "slot.dat"), "current save");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+
+    await page.getByRole("button", { name: "自定义名称" }).click();
+    const dialog = page.getByRole("dialog", { name: "自定义名称" });
+    const name = dialog.getByLabel("备份名称");
+    const submit = dialog.getByRole("button", { name: "开始备份" });
+    await name.fill(duplicateName);
+    await submit.click();
+
+    await expect(dialog.getByRole("status")).toContainText(`destination already exists: ${destination}`);
+    await expect(name).toHaveValue(duplicateName);
+    await expect(submit).toBeEnabled();
+    expect(await readFile(join(destination, "slot.dat"), "utf8")).toBe("existing backup");
+
+    const newName = "可用名称";
+    await name.fill(newName);
+    await submit.click();
+    await expect(dialog).toBeHidden();
+    expect(await readFile(join(gamebk.backupRoot, newName, "slot.dat"), "utf8")).toBe("current save");
+  });
+
   test("窄屏历史按时间展示，长名称和完整路径均可读", async ({ page, gamebk }) => {
     await page.setViewportSize({ width: 430, height: 600 });
     const gameName = "远征" + "VeryLongGameName".repeat(8);
@@ -163,6 +192,51 @@ test.describe("手机游戏详情", () => {
     await expect(menu.getByText(newSaveDir, { exact: true })).toBeVisible();
     await expect(menu.getByText(newBackupRoot, { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
+  });
+
+  test("保存配置请求中断后可刷新核对并继续填写原草稿", async ({ page, gamebk }) => {
+    const gameName = "原始配置";
+    const draftName = "修改后的配置";
+    const draftSaveDir = join(gamebk.saveDir, "new-save");
+    const draftBackupRoot = join(gamebk.backupRoot, "new-backup");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+
+    const menu = page.getByRole("navigation", { name: "游戏详情导航" });
+    await menu.getByText("更多", { exact: true }).click();
+    await menu.getByRole("button", { name: "编辑配置" }).click();
+    const dialog = page.getByRole("dialog", { name: "编辑配置" });
+    const name = dialog.getByLabel("名称", { exact: true });
+    const savePath = dialog.getByLabel("存档路径");
+    const backupRoot = dialog.getByLabel("备份根目录");
+    await name.fill(draftName);
+    await savePath.fill(draftSaveDir);
+    await backupRoot.fill(draftBackupRoot);
+
+    await page.route("**/api/v1/games/*", (route) => route.abort("connectionreset"), { times: 1 });
+    await dialog.getByRole("button", { name: "保存" }).click();
+    await expect(dialog.getByRole("status")).toContainText("结果待核对");
+    await expect(name).toHaveValue(draftName);
+
+    const refreshed = page.waitForResponse("**/api/v1/games");
+    await dialog.getByRole("button", { name: "刷新数据" }).click();
+    expect((await refreshed).ok()).toBe(true);
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("heading", { name: gameName, exact: true })).toBeVisible();
+    await menu.getByText("更多", { exact: true }).click();
+    await expect(menu.getByText(gamebk.saveDir, { exact: true })).toBeVisible();
+    await expect(menu.getByText(gamebk.backupRoot, { exact: true })).toBeVisible();
+    await menu.getByText("更多", { exact: true }).click();
+
+    const resume = page.getByRole("button", { name: "继续填写" });
+    await expect(resume).toBeVisible();
+    await resume.click();
+    await expect(name).toHaveValue(draftName);
+    await expect(savePath).toHaveValue(draftSaveDir);
+    await expect(backupRoot).toHaveValue(draftBackupRoot);
+    await dialog.getByRole("button", { name: "保存" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("heading", { name: draftName, exact: true })).toBeVisible();
   });
 
   test("历史加载失败可以重试，空态禁用恢复最新", async ({ page, gamebk }) => {
@@ -297,11 +371,23 @@ test.describe("手机游戏详情", () => {
     await expect(dialog.locator("time")).toHaveAttribute("datetime", selected.created_at);
     await expect(dialog).toHaveAccessibleDescription("整个存档目录将被替换。");
 
+    const extra = join(gamebk.saveDir, "local-only.dat");
+    await writeFile(slot, "current save before cancel");
+    await writeFile(extra, "local changes");
+    await dialog.getByRole("button", { name: "取消" }).click();
+    await expect(dialog).toBeHidden();
+    expect((await readdir(gamebk.saveDir)).sort()).toEqual(["local-only.dat", "slot.dat"]);
+    expect(await readFile(slot, "utf8")).toBe("current save before cancel");
+    expect(await readFile(extra, "utf8")).toBe("local changes");
+
+    await latest.click();
+    await expect(dialog.getByText(selected.name, { exact: true })).toBeVisible();
     await writeFile(slot, "newest, created during confirmation");
     await saveNamedBackup(editor, "A 离港后");
     await dialog.getByRole("button", { name: "确认恢复" }).click();
     await expect(dialog).toBeHidden();
     await expect(page.getByRole("status").filter({ hasText: "已恢复备份" })).toContainText(selected.name);
+    expect(await readdir(gamebk.saveDir)).toEqual(["slot.dat"]);
     expect(await readFile(slot, "utf8")).toBe("selected by latest");
   });
 
@@ -376,6 +462,8 @@ test.describe("手机游戏详情", () => {
     await expect(dialog).toBeVisible();
     const editor = await page.context().newPage();
     await editor.goto("/ui/");
+    await expect(editor.getByRole("link", { name: gameName, exact: true }))
+      .toHaveAccessibleDescription(/^最近备份 /);
     await openGame(editor, gameName);
     await saveNamedBackup(editor, "确认期间新增的记录");
 
@@ -387,6 +475,10 @@ test.describe("手机游戏详情", () => {
     expect(requests).toEqual([`/api/v1/games/${first.game_id}/backups`]);
     expect(await readdir(gamebk.backupRoot)).toEqual([]);
     expect(await readFile(slot, "utf8")).toBe("active save");
+
+    await page.getByRole("link", { name: "返回游戏列表" }).click();
+    await expect(page.getByRole("link", { name: gameName, exact: true }))
+      .toHaveAccessibleDescription("尚未备份");
   });
 
   test("恢复处理中只提交一次，连接中断后可刷新数据核对", async ({ page, gamebk }) => {

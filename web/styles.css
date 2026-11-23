@@ -104,31 +104,6 @@ h1 {
   margin: 8px 0 12px;
 }
 
-.sub {
-  color: var(--muted);
-  max-width: 520px;
-}
-
-.api-box {
-  background: rgba(20, 28, 43, 0.8);
-  border: 1px solid var(--line);
-  padding: 16px;
-  border-radius: 14px;
-  min-width: 280px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-}
-
-.api-box label {
-  display: block;
-  margin-bottom: 8px;
-  color: var(--muted);
-}
-
-.api-box input {
-  width: 100%;
-  margin-bottom: 12px;
-}
-
 .content {
   padding: 0 6vw 64px;
   display: flex;
@@ -143,47 +118,6 @@ h1 {
   padding: 20px;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
   animation: rise 0.7s ease both;
-}
-
-.panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.panel-head p {
-  color: var(--muted);
-}
-
-.panel-body {
-  margin-top: 16px;
-}
-
-.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 18px;
-}
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
-  animation: fadeIn 0.7s ease both;
-}
-
-.card.wide {
-  grid-column: 1 / -1;
-}
-
-.card-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
 }
 
 .form label {
@@ -229,18 +163,6 @@ button.ghost {
   border: 1px solid var(--line);
   color: var(--ink);
   box-shadow: none;
-}
-
-.row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.status {
-  font-size: 12px;
-  color: var(--muted);
 }
 
 .table {
@@ -300,20 +222,6 @@ button.ghost {
   font-size: 12px;
 }
 
-.detail-box {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
-  background: #0d121c;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.detail-box strong {
-  color: var(--ink);
-}
-
 .pill {
   display: inline-block;
   padding: 2px 8px;
@@ -343,11 +251,6 @@ button.ghost {
   transform: translateY(-1px);
 }
 
-.table .btn-inline.danger {
-  border-color: rgba(255, 95, 95, 0.7);
-  color: #ff9a9a;
-}
-
 .table .link {
   color: var(--accent-2);
   text-decoration: none;
@@ -355,37 +258,6 @@ button.ghost {
 
 .table .link:hover {
   text-decoration: underline;
-}
-
-.modal {
-  position: fixed;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-
-.modal.show {
-  display: flex;
-}
-
-.modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(5, 8, 14, 0.8);
-}
-
-.modal-card {
-  position: relative;
-  z-index: 1;
-  width: min(520px, 90vw);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 18px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: rise 0.3s ease both;
 }
 
 .modal-head {
@@ -445,22 +317,11 @@ button.ghost {
     flex-direction: column;
     align-items: stretch;
   }
-  .api-box {
-    width: 100%;
-  }
   .panel {
     padding: 16px;
   }
   button {
     width: 100%;
-  }
-  .row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .card-row {
-    flex-direction: column;
-    align-items: flex-start;
   }
   .table {
     overflow-x: auto;
@@ -478,59 +339,6 @@ button.ghost {
   h1 {
     font-size: 34px;
   }
-  .panel-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .panel-head p {
-    margin: 0;
-  }
-}
-
-/* 修改反馈框样式为弹框样式 */
-.feedback-box {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 1000;
-  min-width: 300px;
-  max-width: 500px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-}
-
-.feedback {
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-weight: 500;
-  margin: 0;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.feedback.pending {
-  background-color: #3498db; /* 蓝色背景表示正在进行中 */
-}
-
-.feedback.success {
-  background-color: #2ecc71; /* 绿色背景表示成功 */
-}
-
-.feedback.error {
-  background-color: #e74c3c; /* 红色背景表示错误 */
-}
-
-.feedback .close-btn {
-  background: none;
-  border: none;
-  color: white;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 0;
-  margin-left: 10px;
-  width: auto;
-  box-shadow: none;
 }
 
 .list-status,

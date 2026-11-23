@@ -190,8 +190,10 @@ function gameCard(game) {
   const backup = document.createElement("span");
   backup.id = `game-card-backup-${game.id}`;
   backup.className = "game-card-backup";
-  backup.textContent = game.last_backup_at
-    ? `最近备份 ${new Date(game.last_backup_at).toLocaleString("zh-CN")}`
+  // 清空备份历史时，服务会把最近备份时间重置为 Go 零时间。
+  const lastBackupAt = game.last_backup_at;
+  backup.textContent = lastBackupAt && lastBackupAt !== "0001-01-01T00:00:00Z"
+    ? `最近备份 ${new Date(lastBackupAt).toLocaleString("zh-CN")}`
     : "尚未备份";
   link.setAttribute("aria-describedby", backup.id);
 
