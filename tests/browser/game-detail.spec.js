@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createFirstGame, expect, test } from "./fixtures.js";
 
@@ -197,6 +197,250 @@ test.describe("手机游戏详情", () => {
     await expect(latest).toBeEnabled();
   });
 
+  test("从历史确认恢复，取消保留整个存档目录", async ({ page, gamebk }) => {
+    const gameName = "远征" + "VeryLongGameName".repeat(8);
+    const backupName = "LongCheckpoint".repeat(12);
+    const slot = join(gamebk.saveDir, "profile", "slot.dat");
+    const extra = join(gamebk.saveDir, "recent.dat");
+    await mkdir(join(gamebk.saveDir, "profile"));
+    await writeFile(slot, "old checkpoint");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+    const backup = await saveNamedBackup(page, backupName);
+    await writeFile(slot, "new checkpoint");
+    await writeFile(extra, "added later");
+    await saveNamedBackup(page, "最近进度");
+
+    const history = page.getByRole("region", { name: "备份历史" });
+    const card = history.getByRole("article", { name: backupName, exact: true });
+    const restore = card.getByRole("button", { name: "恢复", exact: true });
+    const dialog = page.getByRole("dialog", { name: "恢复备份" });
+    const requests = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/restore/")) {
+        requests.push(new URL(request.url()).pathname);
+      }
+    });
+
+    await restore.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(gameName, { exact: true })).toBeVisible();
+    await expect(dialog.getByText(backupName, { exact: true })).toBeVisible();
+    const created = dialog.locator("time");
+    await expect(created).toBeVisible();
+    await expect(created).toHaveAttribute("datetime", backup.created_at);
+    await expect(created).toHaveText(await card.locator("time").innerText());
+    await expect(dialog).toHaveAccessibleDescription("整个存档目录将被替换。");
+    expect(await dialog.evaluate((element) => element.scrollWidth)).toBe(
+      await dialog.evaluate((element) => element.clientWidth),
+    );
+
+    const cancel = dialog.getByRole("button", { name: "取消" });
+    await expect(cancel).toBeFocused();
+    await cancel.click();
+    await expect(dialog).toBeHidden();
+    await expect(restore).toBeFocused();
+    expect(requests).toHaveLength(0);
+    expect((await readdir(gamebk.saveDir, { recursive: true })).sort()).toEqual(
+      ["profile", join("profile", "slot.dat"), "recent.dat"],
+    );
+    expect(await readFile(slot, "utf8")).toBe("new checkpoint");
+    expect(await readFile(extra, "utf8")).toBe("added later");
+
+    await restore.click();
+    await dialog.getByRole("button", { name: "确认恢复" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("status").filter({ hasText: "已恢复备份" })).toContainText(backupName);
+    expect(requests).toEqual([`/api/v1/games/${backup.game_id}/restore/${backup.id}`]);
+    expect((await readdir(gamebk.saveDir, { recursive: true })).sort()).toEqual(
+      ["profile", join("profile", "slot.dat")],
+    );
+    expect(await readFile(slot, "utf8")).toBe("old checkpoint");
+  });
+
+  test("恢复最新先读取历史，确认后仍恢复已展示的目标", async ({ page, gamebk }) => {
+    const gameName = "港口存档";
+    const slot = join(gamebk.saveDir, "slot.dat");
+    await writeFile(slot, "first");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+    await saveNamedBackup(page, "Z 首次到港");
+
+    const editor = await page.context().newPage();
+    await editor.goto("/ui/");
+    await openGame(editor, gameName);
+    await writeFile(slot, "selected by latest");
+    const selected = await saveNamedBackup(editor, "B 离港前");
+
+    const history = page.getByRole("region", { name: "备份历史" });
+    await expect(history.getByRole("article")).toHaveCount(1);
+    const dialog = page.getByRole("dialog", { name: "恢复备份" });
+    const latest = page.getByRole("button", { name: "恢复最新" });
+    let finishReading;
+    const reading = new Promise((resolve) => { finishReading = resolve; });
+    await page.route("**/api/v1/games/*/backups", async (route) => {
+      await reading;
+      await route.continue();
+    }, { times: 1 });
+    try {
+      await latest.click();
+      await expect(history.getByRole("status")).toHaveText("正在加载备份历史…");
+      await expect(latest).toBeDisabled();
+      await expect(page.getByRole("button", { name: "立即备份" })).toBeDisabled();
+      await expect(dialog).toBeHidden();
+    } finally {
+      finishReading();
+    }
+
+    await expect(dialog.getByText(gameName, { exact: true })).toBeVisible();
+    await expect(dialog.getByText(selected.name, { exact: true })).toBeVisible();
+    await expect(dialog.locator("time")).toHaveAttribute("datetime", selected.created_at);
+    await expect(dialog).toHaveAccessibleDescription("整个存档目录将被替换。");
+
+    await writeFile(slot, "newest, created during confirmation");
+    await saveNamedBackup(editor, "A 离港后");
+    await dialog.getByRole("button", { name: "确认恢复" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("status").filter({ hasText: "已恢复备份" })).toContainText(selected.name);
+    expect(await readFile(slot, "utf8")).toBe("selected by latest");
+  });
+
+  test("从手机备份卡片确认后只删除选中的文件和记录", async ({ page, gamebk }) => {
+    const gameName = "航海笔记";
+    const keepName = "保留的进度";
+    const deleteName = "待清理的进度";
+    await writeFile(join(gamebk.saveDir, "slot.dat"), "ship log");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+    await saveNamedBackup(page, keepName);
+    const backup = await saveNamedBackup(page, deleteName);
+
+    const history = page.getByRole("region", { name: "备份历史" });
+    const card = history.getByRole("article", { name: deleteName, exact: true });
+    await card.getByText("更多", { exact: true }).click();
+    const deleteButton = card.getByRole("button", { name: "删除", exact: true });
+    const dialog = page.getByRole("dialog", { name: "删除备份" });
+    const requests = [];
+    page.on("request", (request) => {
+      if (request.method() === "DELETE") requests.push(new URL(request.url()).pathname);
+    });
+
+    await deleteButton.click();
+    await expect(dialog.getByText(gameName, { exact: true })).toBeVisible();
+    await expect(dialog.getByText(deleteName, { exact: true })).toBeVisible();
+    await expect(dialog).toHaveAccessibleDescription("这份备份的文件和记录都将被删除。");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    expect(requests).toHaveLength(0);
+    expect(await readFile(join(gamebk.backupRoot, deleteName, "slot.dat"), "utf8")).toBe("ship log");
+    await expect(card).toBeVisible();
+
+    await deleteButton.click();
+    await dialog.getByRole("button", { name: "确认删除" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("status").filter({ hasText: "已删除备份" })).toContainText(deleteName);
+    await expect(card).toHaveCount(0);
+    await expect(history.getByRole("article", { name: keepName, exact: true })).toBeVisible();
+    expect(requests).toEqual([`/api/v1/games/${backup.game_id}/backups/${backup.id}`]);
+    expect(await readdir(gamebk.backupRoot)).toEqual([keepName]);
+    expect(await readFile(join(gamebk.backupRoot, keepName, "slot.dat"), "utf8")).toBe("ship log");
+  });
+
+  test("删除全部备份按确认后服务实际删除的数量反馈", async ({ page, gamebk }) => {
+    const gameName = "整理归档";
+    const slot = join(gamebk.saveDir, "slot.dat");
+    await writeFile(slot, "active save");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+    const first = await saveNamedBackup(page, "初始记录");
+
+    const menu = page.getByRole("navigation", { name: "游戏详情导航" });
+    await menu.getByText("更多", { exact: true }).click();
+    const deleteAll = menu.getByRole("button", { name: "删除全部备份" });
+    const dialog = page.getByRole("dialog", { name: "删除全部备份" });
+    const requests = [];
+    page.on("request", (request) => {
+      if (request.method() === "DELETE") requests.push(new URL(request.url()).pathname);
+    });
+
+    await deleteAll.click();
+    await expect(dialog.getByText(gameName, { exact: true })).toBeVisible();
+    await expect(dialog).toHaveAccessibleDescription("该游戏的所有备份文件和记录都将被删除。");
+    await dialog.getByRole("button", { name: "取消" }).click();
+    await expect(dialog).toBeHidden();
+    expect(requests).toHaveLength(0);
+    expect(await readdir(gamebk.backupRoot)).toEqual([first.name]);
+    expect(await readFile(join(gamebk.backupRoot, first.name, "slot.dat"), "utf8")).toBe("active save");
+
+    await deleteAll.click();
+    await expect(dialog).toBeVisible();
+    const editor = await page.context().newPage();
+    await editor.goto("/ui/");
+    await openGame(editor, gameName);
+    await saveNamedBackup(editor, "确认期间新增的记录");
+
+    await dialog.getByRole("button", { name: "确认删除" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText("已删除 2 份备份。", { exact: true })).toBeVisible();
+    await expect(page.getByText("还没有备份")).toBeVisible();
+    await expect(page.getByRole("button", { name: "恢复最新" })).toBeDisabled();
+    expect(requests).toEqual([`/api/v1/games/${first.game_id}/backups`]);
+    expect(await readdir(gamebk.backupRoot)).toEqual([]);
+    expect(await readFile(slot, "utf8")).toBe("active save");
+  });
+
+  test("恢复处理中只提交一次，连接中断后可刷新数据核对", async ({ page, gamebk }) => {
+    const gameName = "山顶存档";
+    const backupName = "到达山顶";
+    const slot = join(gamebk.saveDir, "slot.dat");
+    await writeFile(slot, "checkpoint");
+    await createFirstGame(page, gamebk, gameName);
+    await openGame(page, gameName);
+    await saveNamedBackup(page, backupName);
+    await writeFile(slot, "current save");
+    await page.setViewportSize({ width: 360, height: 370 });
+
+    let finishWriting;
+    const writing = new Promise((resolve) => { finishWriting = resolve; });
+    let submissions = 0;
+    let status;
+    await page.route("**/api/v1/games/*/restore/*", async (route) => {
+      submissions += 1;
+      status = (await route.fetch()).status();
+      await writing;
+      await route.abort();
+    });
+
+    const card = page.getByRole("article", { name: backupName, exact: true });
+    const dialog = page.getByRole("dialog", { name: "恢复备份" });
+    const confirm = dialog.getByRole("button", { name: "确认恢复" });
+    try {
+      await card.getByRole("button", { name: "恢复", exact: true }).click();
+      await confirm.click();
+      const pending = dialog.getByRole("status");
+      await expect(pending).toHaveText("正在恢复备份…");
+      await expect(pending).toBeInViewport();
+      await expect(confirm).toBeDisabled();
+      await expect(dialog.getByRole("button", { name: "取消" })).toBeDisabled();
+      await expect(page.getByText("立即备份", { exact: true })).toBeDisabled();
+      await confirm.tap({ force: true });
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeVisible();
+    } finally {
+      finishWriting();
+    }
+
+    await expect(dialog.getByRole("status")).toContainText("操作结果待核对");
+    await expect(confirm).toBeEnabled();
+    await dialog.getByRole("button", { name: "刷新数据" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(card).toBeVisible();
+    await expect(page.getByRole("button", { name: "立即备份" })).toBeEnabled();
+    expect(submissions).toBe(1);
+    expect(status).toBe(200);
+    expect(await readFile(slot, "utf8")).toBe("checkpoint");
+  });
+
   test("处理中拦截再次备份，连接中断后可以刷新核对实际记录", async ({ page, gamebk }) => {
     const gameName = "回合记录";
     await writeFile(join(gamebk.saveDir, "slot.dat"), "old save");
@@ -252,4 +496,43 @@ test.describe("手机游戏详情", () => {
     expect(await readFile(join(gamebk.backupRoot, saved.name, "slot.dat"), "utf8"))
       .toBe("committed save");
   });
+});
+
+test("桌面恢复目标被另一页面删除，可从确认反馈刷新历史", async ({ page, gamebk }) => {
+  const gameName = "赛季记录";
+  const deletedName = "待删除的旧存档";
+  const remainingName = "保留的存档";
+  const slot = join(gamebk.saveDir, "slot.dat");
+  await writeFile(slot, "old save");
+  await createFirstGame(page, gamebk, gameName);
+  await openGame(page, gameName);
+  await saveNamedBackup(page, deletedName);
+  await writeFile(slot, "current save");
+  await saveNamedBackup(page, remainingName);
+
+  const history = page.getByRole("region", { name: "备份历史" });
+  const row = history.getByRole("row").filter({ hasText: deletedName });
+  await row.getByRole("button", { name: "恢复", exact: true }).click();
+  const restoreDialog = page.getByRole("dialog", { name: "恢复备份" });
+  await expect(restoreDialog.getByText(deletedName, { exact: true })).toBeVisible();
+  await expect(restoreDialog.getByText(gameName, { exact: true })).toBeVisible();
+  await expect(restoreDialog).toHaveAccessibleDescription("整个存档目录将被替换。");
+
+  const editor = await page.context().newPage();
+  await editor.goto("/ui/");
+  await openGame(editor, gameName);
+  const editorRow = editor.getByRole("row").filter({ hasText: deletedName });
+  await editorRow.getByRole("button", { name: "删除", exact: true }).click();
+  const deleteDialog = editor.getByRole("dialog", { name: "删除备份" });
+  await expect(deleteDialog.getByText(deletedName, { exact: true })).toBeVisible();
+  await deleteDialog.getByRole("button", { name: "确认删除" }).click();
+  await expect(editorRow).toHaveCount(0);
+
+  await restoreDialog.getByRole("button", { name: "确认恢复" }).click();
+  await expect(restoreDialog.getByRole("status")).toContainText("所选备份已不存在");
+  await restoreDialog.getByRole("button", { name: "刷新数据" }).click();
+  await expect(restoreDialog).toBeHidden();
+  await expect(history.getByRole("table").getByRole("cell", { name: remainingName, exact: true })).toBeVisible();
+  await expect(row).toHaveCount(0);
+  expect(await readFile(slot, "utf8")).toBe("current save");
 });

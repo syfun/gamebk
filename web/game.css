@@ -266,6 +266,25 @@
   font-size: 1rem;
 }
 
+.backup-action-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
+.backup-action-facts dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.backup-action-facts dd {
+  margin: 2px 0 0;
+}
+
+.backup-action-impact {
+  margin: 0;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;

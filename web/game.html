@@ -86,6 +86,21 @@
       </article>
     </template>
 
+    <dialog id="backupActionDialog" class="game-dialog"
+      aria-labelledby="backupActionTitle" aria-describedby="backupActionImpact">
+      <h2 id="backupActionTitle"></h2>
+      <dl class="backup-action-facts">
+        <div><dt>游戏</dt><dd id="backupActionGame"></dd></div>
+        <div data-backup-detail><dt>备份</dt><dd id="backupActionName"></dd></div>
+        <div data-backup-detail><dt>创建时间</dt><dd id="backupActionTime"></dd></div>
+      </dl>
+      <p id="backupActionImpact" class="backup-action-impact"></p>
+      <div class="dialog-actions">
+        <button type="button" class="ghost" data-close-dialog data-game-write autofocus>取消</button>
+        <button type="button" id="confirmBackupAction" data-game-write></button>
+      </div>
+    </dialog>
+
     <dialog id="backupDialog" class="game-dialog" aria-labelledby="backupDialogTitle">
       <h2 id="backupDialogTitle">自定义名称</h2>
       <form id="formBackup" class="form">

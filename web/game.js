@@ -17,6 +17,7 @@ const historyRecords = document.getElementById("historyRecords");
 const backupCards = document.getElementById("backupCards");
 const backupCardTemplate = document.getElementById("backupCardTemplate");
 const backupsTable = document.getElementById("backupsTable");
+const backupActionDialog = document.getElementById("backupActionDialog");
 const backupDialog = document.getElementById("backupDialog");
 const formBackup = document.getElementById("formBackup");
 const gameConfigDialog = document.getElementById("gameConfigDialog");
@@ -40,24 +41,25 @@ const byteFormat = new Intl.NumberFormat("zh-CN");
 let selectedGame = null;
 let backupRecords = null;
 let readingGame = false;
+let readingLatest = false;
 let writing = false;
 let historyVersion = 0;
 
 function syncControls() {
-  const writeDisabled = !selectedGame || readingGame || writing;
+  const writeDisabled = !selectedGame || readingGame || readingLatest || writing;
   for (const control of document.querySelectorAll("[data-game-write]")) {
     control.disabled = writeDisabled;
   }
   restoreLatest.disabled = writeDisabled || !backupRecords?.length;
   deleteAll.disabled = writeDisabled || !backupRecords?.length;
-  refreshHistory.disabled = !selectedGame || readingGame || writing || Boolean(historyLoading.textContent);
+  refreshHistory.disabled = writeDisabled || Boolean(historyLoading.textContent);
 }
 
-function showFeedback(message, state) {
+function showFeedback(message, state, canRefresh = state === "unknown") {
   writeFeedback.dataset.state = state;
   writeFeedback.hidden = false;
   writeMessage.textContent = message;
-  refreshAfterWrite.hidden = state !== "unknown";
+  refreshAfterWrite.hidden = !canRefresh;
   dismissFeedback.hidden = state === "pending";
 }
 
@@ -74,7 +76,7 @@ function wireWriteDialog(dialog) {
 async function runGameWrite({
   method, path, body, pending, failure, onSuccess, reloadHistory = false, dialog,
 }) {
-  if (!selectedGame || readingGame || writing) return;
+  if (!selectedGame || readingGame || readingLatest || writing) return;
   writing = true;
   syncControls();
   const feedbackContainer = dialog ?? document.body;
@@ -86,7 +88,9 @@ async function runGameWrite({
     if (result.networkError) {
       showFeedback("连接中断，操作结果待核对。请刷新数据并核对记录。", "unknown");
     } else if (!result.ok) {
-      showFeedback(`${failure}。${responseError(result)}`, "error");
+      const backupMissing = result.status === 404 && result.data?.message === "backup not found";
+      const reason = backupMissing ? "所选备份已不存在。请刷新数据并重新选择。" : responseError(result);
+      showFeedback(`${failure}。${reason}`, "error", backupMissing);
     } else if (!result.data?.data) {
       showFeedback("服务响应无法读取，操作结果待核对。请刷新数据并核对记录。", "unknown");
     } else {
@@ -143,10 +147,33 @@ function saveGameConfig(event) {
   });
 }
 
+function openBackupActionDialog(backup, { title, impact, confirmLabel, danger = false, ...write }) {
+  if (!selectedGame || readingGame || writing || backupActionDialog.open) return;
+  document.getElementById("backupActionTitle").textContent = title;
+  document.getElementById("backupActionGame").textContent = selectedGame.name;
+  document.getElementById("backupActionImpact").textContent = impact;
+  for (const field of backupActionDialog.querySelectorAll("[data-backup-detail]")) {
+    field.hidden = !backup;
+  }
+  if (backup) {
+    document.getElementById("backupActionName").textContent = backup.name;
+    document.getElementById("backupActionTime").replaceChildren(backupTime(backup.created_at));
+  }
+  const confirm = document.getElementById("confirmBackupAction");
+  confirm.textContent = confirmLabel;
+  confirm.className = danger ? "ghost danger" : "";
+  confirm.onclick = () => {
+    if (backupActionDialog.open) void runGameWrite({ ...write, dialog: backupActionDialog });
+  };
+  backupActionDialog.showModal();
+}
+
 function restoreBackup(backup) {
-  if (!backup || writing || !selectedGame) return;
-  if (!window.confirm(`恢复「${selectedGame.name}」的备份「${backup.name}」？整个存档目录将被替换。`)) return;
-  return runGameWrite({
+  if (!backup) return;
+  openBackupActionDialog(backup, {
+    title: "恢复备份",
+    impact: "整个存档目录将被替换。",
+    confirmLabel: "确认恢复",
     method: "POST",
     path: `/restore/${backup.id}`,
     pending: "正在恢复备份…",
@@ -155,10 +182,28 @@ function restoreBackup(backup) {
   });
 }
 
+async function restoreLatestBackup() {
+  if (restoreLatest.disabled) return;
+  readingLatest = true;
+  let records;
+  try {
+    records = await fetchBackups();
+  } finally {
+    readingLatest = false;
+    syncControls();
+  }
+  if (!records?.length) return;
+  // 历史接口按完整的创建时间倒序返回。
+  restoreLatest.focus();
+  restoreBackup(records[0]);
+}
+
 function deleteBackup(backup) {
-  if (writing || !selectedGame) return;
-  if (!window.confirm(`删除「${selectedGame.name}」的备份「${backup.name}」？备份文件和记录都将被删除。`)) return;
-  return runGameWrite({
+  openBackupActionDialog(backup, {
+    title: "删除备份",
+    impact: "这份备份的文件和记录都将被删除。",
+    confirmLabel: "确认删除",
+    danger: true,
     method: "DELETE",
     path: `/backups/${backup.id}`,
     pending: "正在删除备份…",
@@ -169,9 +214,11 @@ function deleteBackup(backup) {
 }
 
 function deleteAllBackups() {
-  if (writing || !selectedGame) return;
-  if (!window.confirm(`删除「${selectedGame.name}」的全部备份？所有备份文件和记录都将被删除。`)) return;
-  return runGameWrite({
+  openBackupActionDialog(null, {
+    title: "删除全部备份",
+    impact: "该游戏的所有备份文件和记录都将被删除。",
+    confirmLabel: "确认删除",
+    danger: true,
     method: "DELETE",
     path: "/backups",
     pending: "正在删除全部备份…",
@@ -337,7 +384,8 @@ formBackup.addEventListener("submit", (event) => {
 wireWriteDialog(gameConfigDialog);
 document.getElementById("btnEditGame").addEventListener("click", openGameConfig);
 formGameConfig.addEventListener("submit", saveGameConfig);
-restoreLatest.addEventListener("click", () => restoreBackup(backupRecords?.[0]));
+wireWriteDialog(backupActionDialog);
+restoreLatest.addEventListener("click", restoreLatestBackup);
 deleteAll.addEventListener("click", deleteAllBackups);
 refreshHistory.addEventListener("click", fetchBackups);
 document.getElementById("btnRetryHistory").addEventListener("click", fetchBackups);
