@@ -532,3 +532,41 @@ button.ghost {
   width: auto;
   box-shadow: none;
 }
+
+.list-status,
+.list-state {
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.list-status:empty {
+  margin: 0;
+}
+
+.list-state {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  background: #0d121c;
+}
+
+.list-state h4,
+.list-state p {
+  margin: 0;
+}
+
+.list-state h4 {
+  color: var(--ink);
+}
+
+.list-state button {
+  width: auto;
+  min-height: 44px;
+}
+
+.error-message {
+  color: #ffb0b0;
+  overflow-wrap: anywhere;
+}

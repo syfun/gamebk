@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -48,7 +48,16 @@
               <button id="btnListGames" class="ghost">刷新</button>
             </div>
           </div>
-          <div id="gamesTable" class="table"></div>
+          <p id="gamesLoading" class="list-status" role="status"></p>
+          <div id="gamesError" class="list-state" hidden>
+            <p id="gamesErrorMessage" class="error-message" role="alert"></p>
+            <button id="btnRetryGames" type="button" class="ghost">重试</button>
+          </div>
+          <section id="gamesEmpty" class="list-state" aria-labelledby="gamesEmptyTitle" hidden>
+            <h4 id="gamesEmptyTitle">还没有游戏</h4>
+            <button id="btnNewGameEmpty" type="button">新建游戏</button>
+          </section>
+          <div id="gamesTable" class="table" hidden></div>
         </div>
       </div>
     </section>
@@ -63,12 +72,12 @@
         <form id="formGame" class="form">
           <input type="hidden" name="mode" value="create" />
           <input type="hidden" name="id" value="" />
-          <label>名称</label>
-          <input name="name" placeholder="Skyrim" required />
-          <label>存档路径</label>
-          <input name="game_path" placeholder="D:\\Games\\Skyrim\\Saves" required />
-          <label>备份根目录</label>
-          <input name="backup_root" placeholder="D:\\Backups\\Skyrim" required />
+          <label for="gameName">名称</label>
+          <input id="gameName" name="name" placeholder="Skyrim" required />
+          <label for="gamePath">存档路径</label>
+          <input id="gamePath" name="game_path" placeholder="D:\\Games\\Skyrim\\Saves" required />
+          <label for="backupRoot">备份根目录</label>
+          <input id="backupRoot" name="backup_root" placeholder="D:\\Backups\\Skyrim" required />
           <button type="submit" id="modalSubmit">创建</button>
         </form>
       </div>
@@ -76,6 +85,6 @@
 
   </main>
 
-  <script src="games.js"></script>
+  <script type="module" src="games.js"></script>
 </body>
 </html>
