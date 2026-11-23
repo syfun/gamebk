@@ -1,310 +1,352 @@
+import { request, responseError } from "./api.js";
+
+const gameId = new URLSearchParams(window.location.search).get("id");
+const gameTitle = document.getElementById("gameTitle");
+const gameMenu = document.getElementById("gameMenu");
+const gameLoading = document.getElementById("gameLoading");
+const gameError = document.getElementById("gameError");
+const retryGame = document.getElementById("btnRetryGame");
+const restoreLatest = document.getElementById("btnRestoreLatest");
+const deleteAll = document.getElementById("btnDeleteAllBackups");
+const refreshHistory = document.getElementById("btnListBackups");
+const historyLoading = document.getElementById("historyLoading");
+const historyError = document.getElementById("historyError");
+const historyErrorMessage = document.getElementById("historyErrorMessage");
+const historyEmpty = document.getElementById("historyEmpty");
+const historyRecords = document.getElementById("historyRecords");
+const backupCards = document.getElementById("backupCards");
+const backupCardTemplate = document.getElementById("backupCardTemplate");
 const backupsTable = document.getElementById("backupsTable");
-const gameDetailInfo = document.getElementById("gameDetailInfo");
-const restoreFeedback = document.getElementById("restoreFeedback"); // 弹框反馈元素
+const backupDialog = document.getElementById("backupDialog");
+const formBackup = document.getElementById("formBackup");
+const gameConfigDialog = document.getElementById("gameConfigDialog");
+const formGameConfig = document.getElementById("formGameConfig");
+const writeFeedback = document.getElementById("writeFeedback");
+const writeMessage = document.getElementById("writeMessage");
+const refreshAfterWrite = document.getElementById("refreshAfterWrite");
+const dismissFeedback = document.getElementById("dismissFeedback");
+
+const backupTimeFormat = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+const byteFormat = new Intl.NumberFormat("zh-CN");
 
 let selectedGame = null;
+let backupRecords = null;
+let readingGame = false;
+let writing = false;
+let historyVersion = 0;
 
-function apiUrl(path) {
-  return `${window.location.origin}${path}`;
+function syncControls() {
+  const writeDisabled = !selectedGame || readingGame || writing;
+  for (const control of document.querySelectorAll("[data-game-write]")) {
+    control.disabled = writeDisabled;
+  }
+  restoreLatest.disabled = writeDisabled || !backupRecords?.length;
+  deleteAll.disabled = writeDisabled || !backupRecords?.length;
+  refreshHistory.disabled = !selectedGame || readingGame || writing || Boolean(historyLoading.textContent);
 }
 
-async function request(method, path, body) {
-  const options = { method, headers: {} };
-  if (body !== undefined) {
-    options.headers["Content-Type"] = "application/json";
-    options.body = JSON.stringify(body);
-  }
-  const res = await fetch(apiUrl(path), options);
-  const text = await res.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  return { ok: res.ok, status: res.status, data };
+function showFeedback(message, state) {
+  writeFeedback.dataset.state = state;
+  writeFeedback.hidden = false;
+  writeMessage.textContent = message;
+  refreshAfterWrite.hidden = state !== "unknown";
+  dismissFeedback.hidden = state === "pending";
 }
 
-function renderTable(target, rows, columns) {
-  if (!rows || rows.length === 0) {
-    target.innerHTML = '<div class="helper">No records.</div>';
-    return;
-  }
-  const thead = columns.map((c) => `<th>${c.label}</th>`).join("");
-  const tbody = rows
-    .map(
-      (row) =>
-        `<tr>${columns
-          .map((c) => `<td>${row[c.key] ?? ""}</td>`)
-          .join("")}</tr>`,
-    )
-    .join("");
-  target.innerHTML = `<table><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>`;
-}
-
-function getField(form, name) {
-  return form.querySelector(`[name="${name}"]`);
-}
-
-async function handleBackup(e) {
-  e.preventDefault();
-  if (!selectedGame) {
-    showNotification("未选择游戏。", "error");
-    showNotification("Missing game selection.", "error");
-    return;
-  }
-  const form = e.currentTarget;
-  const nameInput = getField(form, "name").value;
-  const payload = { name: null };
-  if (nameInput.trim() !== "") {
-    payload.name = nameInput.trim();
-  }
-  showNotification("正在创建备份...", "pending");
-  try {
-    const res = await request(
-      "POST",
-      `/api/v1/games/${selectedGame.id}/backup`,
-      payload,
-    );
-    if (res.ok) {
-      form.reset();
-      await fetchBackups();
-      showNotification("备份创建成功！", "success");
-    } else {
-      showNotification(`备份失败：${res.data?.message || "未知错误"}`, "error");
-    }
-  } catch (err) {
-    showNotification(`备份失败：${err?.message || "网络错误"}`, "error");
-  }
-}
-
-async function handleRestoreLatest(e) {
-  e.preventDefault();
-  if (!selectedGame) return;
-
-  showNotification("正在恢复最新备份...", "pending");
-
-  const res = await request(
-    "POST",
-    `/api/v1/games/${selectedGame.id}/restore/latest`,
-  );
-  // 根据响应显示成功或失败的消息
-  if (res.ok) {
-    showNotification("最新备份恢复成功！", "success");
-  } else {
-    showNotification(
-      `恢复最新备份失败：${res.data?.message || "未知错误"}`,
-      "error",
-    );
-  }
-}
-
-async function handleRestoreById(backupId) {
-  if (!selectedGame) return;
-
-  showNotification(`正在恢复备份 ID：${backupId}...`, "pending");
-
-  const res = await request(
-    "POST",
-    `/api/v1/games/${selectedGame.id}/restore/${backupId}`,
-  );
-  // 根据响应显示成功或失败的消息
-  if (res.ok) {
-    showNotification("备份恢复成功！", "success");
-  } else {
-    showNotification(
-      `恢复备份失败：${res.data?.message || "未知错误"}`,
-      "error",
-    );
-  }
-}
-
-async function handleDeleteBackup(backupId) {
-  if (!selectedGame) return;
-  if (!window.confirm("确认删除该备份？将同时删除备份文件与记录。")) {
-    return;
-  }
-  showNotification(`正在删除备份 ID：${backupId}...`, "pending");
-  const res = await request(
-    "DELETE",
-    `/api/v1/games/${selectedGame.id}/backups/${backupId}`,
-  );
-  if (res.ok) {
-    showNotification("备份已删除。", "success");
-    await fetchBackups();
-  } else {
-    showNotification(`删除失败：${res.data?.message || "未知错误"}`, "error");
-  }
-}
-
-async function handleDeleteAllBackups() {
-  if (!selectedGame) return;
-  if (
-    !window.confirm(
-      "确认删除该游戏的所有备份？将同时删除所有备份文件与记录！此操作不可撤销。",
-    )
-  ) {
-    return;
-  }
-
-  showNotification("正在删除所有备份...", "pending");
-
-  const res = await request(
-    "DELETE",
-    `/api/v1/games/${selectedGame.id}/backups`,
-  );
-  if (res.ok) {
-    showNotification(
-      `成功删除 ${res.data?.deleted_backups || 0} 个备份！`,
-      "success",
-    );
-    await fetchBackups();
-    // 刷新游戏详情以更新最后备份时间
-    const game = await fetchGame(selectedGame.id);
-    setGameDetail(game);
-  } else {
-    showNotification(
-      `删除所有备份失败：${res.data?.message || "未知错误"}`,
-      "error",
-    );
-  }
-}
-
-// 显示通知弹框的函数
-function showNotification(message, type) {
-  // 如果已有通知则先移除
-  if (restoreFeedback.firstChild) {
-    restoreFeedback.removeChild(restoreFeedback.firstChild);
-  }
-
-  // 创建通知元素
-  const notification = document.createElement("div");
-  notification.className = `feedback ${type}`;
-
-  // 添加内容
-  notification.innerHTML = `
-    <span>${message}</span>
-    <button class="close-btn">&times;</button>
-  `;
-
-  // 添加到容器
-  restoreFeedback.appendChild(notification);
-  restoreFeedback.style.display = "block";
-
-  // 绑定关闭事件
-  const closeBtn = notification.querySelector(".close-btn");
-  closeBtn.addEventListener("click", () => {
-    hideNotification();
+function wireWriteDialog(dialog) {
+  dialog.querySelector("[data-close-dialog]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("cancel", (event) => {
+    if (writing) event.preventDefault();
   });
+  dialog.addEventListener("close", () => {
+    if (writeFeedback.parentElement === dialog) document.body.append(writeFeedback);
+  });
+}
 
-  // 如果是成功或错误类型，3秒后自动隐藏
-  if (type === "success" || type === "error") {
-    setTimeout(() => {
-      hideNotification();
-    }, 3000);
+async function runGameWrite({
+  method, path, body, pending, failure, onSuccess, reloadHistory = false, dialog,
+}) {
+  if (!selectedGame || readingGame || writing) return;
+  writing = true;
+  syncControls();
+  const feedbackContainer = dialog ?? document.body;
+  if (writeFeedback.parentElement !== feedbackContainer) feedbackContainer.append(writeFeedback);
+  showFeedback(pending, "pending");
+  let succeeded = false;
+  try {
+    const result = await request(method, `/api/v1/games/${selectedGame.id}${path}`, body);
+    if (result.networkError) {
+      showFeedback("连接中断，操作结果待核对。请刷新数据并核对记录。", "unknown");
+    } else if (!result.ok) {
+      showFeedback(`${failure}。${responseError(result)}`, "error");
+    } else if (!result.data?.data) {
+      showFeedback("服务响应无法读取，操作结果待核对。请刷新数据并核对记录。", "unknown");
+    } else {
+      showFeedback(onSuccess(result.data.data), "success");
+      succeeded = true;
+    }
+  } finally {
+    writing = false;
+    syncControls();
+  }
+
+  if (succeeded) {
+    dialog?.close();
+    if (reloadHistory) void fetchBackups();
   }
 }
 
-// 隐藏通知弹框
-function hideNotification() {
-  restoreFeedback.style.display = "none";
-  if (restoreFeedback.firstChild) {
-    restoreFeedback.removeChild(restoreFeedback.firstChild);
-  }
+function createBackup(name, dialog) {
+  return runGameWrite({
+    method: "POST",
+    path: "/backup",
+    body: { name },
+    pending: "正在创建备份…",
+    failure: "备份失败",
+    reloadHistory: true,
+    dialog,
+    onSuccess: (backup) => `备份成功：${backup.name}`,
+  });
 }
 
-async function fetchGame(id) {
-  const res = await request("GET", "/api/v1/games");
-  if (!res.ok || !res.data || !res.data.data) return null;
-  return res.data.data.find((g) => String(g.id) === String(id)) || null;
+function openGameConfig() {
+  if (!selectedGame || readingGame || writing) return;
+  for (const field of ["name", "game_path", "backup_root"]) {
+    formGameConfig.elements[field].value = selectedGame[field];
+  }
+  gameMenu.open = false;
+  gameMenu.querySelector("summary").focus();
+  gameConfigDialog.showModal();
+}
+
+function saveGameConfig(event) {
+  event.preventDefault();
+  return runGameWrite({
+    method: "PATCH",
+    path: "",
+    body: Object.fromEntries(new FormData(formGameConfig)),
+    pending: "正在保存配置…",
+    failure: "保存配置失败",
+    dialog: gameConfigDialog,
+    onSuccess: (game) => {
+      renderGame(game);
+      return "配置已保存。";
+    },
+  });
+}
+
+function restoreBackup(backup) {
+  if (!backup || writing || !selectedGame) return;
+  if (!window.confirm(`恢复「${selectedGame.name}」的备份「${backup.name}」？整个存档目录将被替换。`)) return;
+  return runGameWrite({
+    method: "POST",
+    path: `/restore/${backup.id}`,
+    pending: "正在恢复备份…",
+    failure: "恢复备份失败",
+    onSuccess: () => `已恢复备份「${backup.name}」。`,
+  });
+}
+
+function deleteBackup(backup) {
+  if (writing || !selectedGame) return;
+  if (!window.confirm(`删除「${selectedGame.name}」的备份「${backup.name}」？备份文件和记录都将被删除。`)) return;
+  return runGameWrite({
+    method: "DELETE",
+    path: `/backups/${backup.id}`,
+    pending: "正在删除备份…",
+    failure: "删除备份失败",
+    reloadHistory: true,
+    onSuccess: () => `已删除备份「${backup.name}」。`,
+  });
+}
+
+function deleteAllBackups() {
+  if (writing || !selectedGame) return;
+  if (!window.confirm(`删除「${selectedGame.name}」的全部备份？所有备份文件和记录都将被删除。`)) return;
+  return runGameWrite({
+    method: "DELETE",
+    path: "/backups",
+    pending: "正在删除全部备份…",
+    failure: "删除全部备份失败",
+    reloadHistory: true,
+    onSuccess: (result) => `已删除 ${result.deleted_backups} 份备份。`,
+  });
+}
+
+function backupButton(label, action, danger = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = danger ? "ghost danger" : "ghost";
+  button.textContent = label;
+  button.dataset.gameWrite = "";
+  button.addEventListener("click", action);
+  return button;
+}
+
+function formatBackupTime(value) {
+  return backupTimeFormat.format(Date.parse(value));
+}
+
+function backupTime(value) {
+  const time = document.createElement("time");
+  time.dateTime = value;
+  time.textContent = formatBackupTime(value);
+  return time;
+}
+
+function backupSize(bytes) {
+  return `${byteFormat.format(bytes)} B`;
+}
+
+function backupCard(backup) {
+  const card = backupCardTemplate.content.firstElementChild.cloneNode(true);
+  const heading = card.querySelector("h3");
+  heading.id = `backup-title-${backup.id}`;
+  heading.textContent = backup.name;
+  card.setAttribute("aria-labelledby", heading.id);
+  card.querySelector("time").replaceWith(backupTime(backup.created_at));
+  card.querySelector(".backup-size").textContent = backupSize(backup.size_bytes);
+  card.querySelector(".backup-path").textContent = backup.backup_path;
+  card.querySelector(".backup-card-actions").prepend(backupButton("恢复", () => restoreBackup(backup)));
+  card.querySelector(".backup-more-content").append(backupButton("删除", () => deleteBackup(backup), true));
+  return card;
+}
+
+function renderBackups(backups) {
+  const cards = document.createDocumentFragment();
+  for (const backup of backups) cards.append(backupCard(backup));
+  backupCards.replaceChildren(cards);
+  renderBackupTable(backups);
+}
+
+function renderBackupTable(backups) {
+  const table = document.createElement("table");
+  const headings = table.createTHead().insertRow();
+  for (const label of ["ID", "名称", "备份路径", "创建时间", "大小", "操作"]) {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = label;
+    headings.append(cell);
+  }
+
+  const body = table.createTBody();
+  for (const backup of backups) {
+    const row = body.insertRow();
+    for (const value of [backup.id, backup.name, backup.backup_path]) {
+      row.insertCell().textContent = value;
+    }
+    row.insertCell().append(backupTime(backup.created_at));
+    row.insertCell().textContent = backupSize(backup.size_bytes);
+    const actions = row.insertCell();
+    actions.append(
+      backupButton("恢复", () => restoreBackup(backup)),
+      backupButton("删除", () => deleteBackup(backup), true),
+    );
+  }
+  backupsTable.replaceChildren(table);
 }
 
 async function fetchBackups() {
-  if (!selectedGame) return;
-  const res = await request("GET", `/api/v1/games/${selectedGame.id}/backups`);
-  if (res.ok && res.data && res.data.data) {
-    const rows = res.data.data.map((b) => ({
-      ...b,
-      actions: `<button class="btn-inline" data-restore="${b.id}">恢复</button> <button class="btn-inline danger" data-delete="${b.id}">删除</button>`,
-    }));
-    renderTable(backupsTable, rows, [
-      { key: "id", label: "ID" },
-      { key: "name", label: "名称" },
-      { key: "backup_path", label: "备份路径" },
-      { key: "created_at", label: "创建时间" },
-      { key: "size_bytes", label: "大小" },
-      { key: "actions", label: "操作" },
-    ]);
-    wireRestoreButtons(rows);
-    wireDeleteButtons(rows);
+  if (!selectedGame) return null;
+  const version = ++historyVersion;
+  backupRecords = null;
+  historyLoading.textContent = "正在加载备份历史…";
+  historyError.hidden = true;
+  historyEmpty.hidden = true;
+  historyRecords.hidden = true;
+  syncControls();
+
+  const result = await request("GET", `/api/v1/games/${selectedGame.id}/backups`);
+  if (version !== historyVersion) return null;
+  historyLoading.textContent = "";
+  const records = result.data?.data;
+  if (!result.ok || (records !== null && !Array.isArray(records))) {
+    const reason = result.ok ? "服务返回了无效的备份历史" : responseError(result);
+    historyErrorMessage.textContent = `无法加载备份历史。${reason}`;
+    historyError.hidden = false;
   } else {
-    renderTable(backupsTable, []);
+    backupRecords = records ?? [];
+    historyEmpty.hidden = backupRecords.length !== 0;
+    if (backupRecords.length) {
+      renderBackups(backupRecords);
+      historyRecords.hidden = false;
+    }
   }
+  syncControls();
+  return backupRecords;
 }
 
-function setGameDetail(game) {
+function renderGame(game) {
   selectedGame = game;
-  if (!game) {
-    gameDetailInfo.textContent = "Game not found.";
-    return;
-  }
-  gameDetailInfo.innerHTML = `
-    <div><strong>ID:</strong> ${game.id}</div>
-    <div><strong>Name:</strong> ${game.name}</div>
-    <div><strong>Game Path:</strong> ${game.game_path}</div>
-    <div><strong>Backup Root:</strong> ${game.backup_root}</div>
-    <div><strong>Last Backup:</strong> ${game.last_backup_at ?? "-"}</div>
-    <div class="pill">Selected</div>
-  `;
+  gameTitle.textContent = game.name;
+  document.title = `GameBK - ${game.name}`;
+  document.getElementById("gamePath").textContent = game.game_path;
+  document.getElementById("backupRoot").textContent = game.backup_root;
+  gameMenu.hidden = false;
 }
 
-async function init() {
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get("id");
-  if (!id) {
-    gameDetailInfo.textContent = "Missing game id in URL.";
+async function loadGame() {
+  if (readingGame || writing) return;
+  gameError.hidden = true;
+  retryGame.hidden = true;
+  if (!gameId) {
+    gameError.textContent = "缺少游戏编号。";
+    gameError.hidden = false;
     return;
   }
-  const game = await fetchGame(id);
-  setGameDetail(game);
+
+  readingGame = true;
+  gameLoading.textContent = "正在加载游戏…";
+  syncControls();
+  const result = await request("GET", "/api/v1/games");
+  const games = result.data?.data;
+  const game = Array.isArray(games) && games.find((entry) => String(entry.id) === gameId);
+  readingGame = false;
+  gameLoading.textContent = "";
+  if (!result.ok || !game) {
+    const reason = result.ok ? "找不到这个游戏" : responseError(result);
+    gameError.textContent = `无法加载游戏。${reason}`;
+    gameError.hidden = false;
+    retryGame.hidden = false;
+    syncControls();
+    return;
+  }
+
+  renderGame(game);
   await fetchBackups();
 }
 
-function wire() {
-  document
-    .getElementById("formBackup")
-    .addEventListener("submit", handleBackup);
-  document
-    .getElementById("formRestoreLatest")
-    .addEventListener("submit", handleRestoreLatest);
-  document
-    .getElementById("btnListBackups")
-    .addEventListener("click", fetchBackups);
-  document
-    .getElementById("btnDeleteAllBackups")
-    .addEventListener("click", handleDeleteAllBackups);
-  document.getElementById("btnBack").addEventListener("click", () => {
-    window.location.href = "games.html";
-  });
-}
+document.getElementById("btnBackupNow").addEventListener("click", () => createBackup(null));
+wireWriteDialog(backupDialog);
+document.getElementById("btnBackupCustom").addEventListener("click", () => {
+  formBackup.reset();
+  backupDialog.showModal();
+});
+formBackup.addEventListener("submit", (event) => {
+  event.preventDefault();
+  createBackup(formBackup.elements.name.value.trim() || null, backupDialog);
+});
+wireWriteDialog(gameConfigDialog);
+document.getElementById("btnEditGame").addEventListener("click", openGameConfig);
+formGameConfig.addEventListener("submit", saveGameConfig);
+restoreLatest.addEventListener("click", () => restoreBackup(backupRecords?.[0]));
+deleteAll.addEventListener("click", deleteAllBackups);
+refreshHistory.addEventListener("click", fetchBackups);
+document.getElementById("btnRetryHistory").addEventListener("click", fetchBackups);
+retryGame.addEventListener("click", loadGame);
+refreshAfterWrite.addEventListener("click", () => {
+  writeFeedback.closest("dialog")?.close();
+  writeFeedback.hidden = true;
+  void loadGame();
+});
+dismissFeedback.addEventListener("click", () => { writeFeedback.hidden = true; });
 
-wire();
-init();
-
-function wireRestoreButtons(rows) {
-  backupsTable.querySelectorAll("button[data-restore]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-restore");
-      handleRestoreById(id);
-    });
-  });
-}
-
-function wireDeleteButtons(rows) {
-  backupsTable.querySelectorAll("button[data-delete]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-delete");
-      handleDeleteBackup(id);
-    });
-  });
-}
+loadGame();

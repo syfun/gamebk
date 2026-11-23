@@ -1,0 +1,283 @@
+.game-page [hidden] {
+  display: none;
+}
+
+.game-page .content {
+  padding-top: clamp(18px, 4vw, 48px);
+  gap: 24px;
+  overflow-wrap: anywhere;
+}
+
+.game-page button,
+.game-back,
+.game-menu summary,
+.backup-more summary {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.game-page button {
+  width: auto;
+  margin-top: 0;
+}
+
+.game-page button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.game-nav,
+.game-actions,
+.history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.game-back {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-2);
+  gap: 6px;
+  text-decoration: none;
+}
+
+.game-back:hover {
+  text-decoration: underline;
+}
+
+.game-heading h1 {
+  margin: 8px 0 16px;
+  font-family: inherit;
+  font-size: clamp(1.5rem, 5vw, 3rem);
+}
+
+.game-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.game-menu {
+  position: relative;
+}
+
+.game-menu summary,
+.backup-more summary {
+  width: max-content;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.game-menu-content {
+  display: grid;
+  gap: 8px;
+  position: absolute;
+  z-index: 3;
+  inset-inline-end: 0;
+  width: min(320px, 86vw);
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.game-paths {
+  margin: 0;
+  color: var(--muted);
+}
+
+.game-paths dt {
+  margin-top: 8px;
+}
+
+.game-paths dd {
+  margin: 4px 0 0;
+  color: var(--ink);
+}
+
+.history-heading h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+#backupsTable table {
+  table-layout: fixed;
+}
+
+#backupsTable th:first-child {
+  width: 4rem;
+}
+
+#backupsTable th:nth-child(4) {
+  width: 11rem;
+}
+
+#backupsTable th:nth-child(5) {
+  width: 5rem;
+}
+
+#backupsTable th:last-child {
+  width: 10rem;
+}
+
+#backupsTable td:last-child {
+  white-space: normal;
+}
+
+.backup-cards {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  #backupsTable {
+    display: none;
+  }
+
+  .backup-cards {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+  }
+}
+
+.backup-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.backup-card h3 {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+}
+
+.backup-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0 0 12px;
+}
+
+.backup-facts dt,
+.backup-more-content p:first-child {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.backup-facts dd {
+  margin: 2px 0 0;
+}
+
+.backup-card-actions {
+  display: grid;
+  align-items: start;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.backup-more summary {
+  margin-inline-start: auto;
+}
+
+.backup-more-content {
+  padding: 8px 0 0;
+}
+
+.backup-more-content p {
+  margin: 4px 0 8px;
+}
+
+#backupsTable td button {
+  margin: 2px;
+}
+
+.game-page .danger {
+  border-color: rgba(255, 95, 95, 0.65);
+  color: #ffb0b0;
+}
+
+.game-feedback {
+  position: fixed;
+  z-index: 10;
+  inset-inline-end: 12px;
+  bottom: 12px;
+  width: min(32rem, calc(100% - 24px));
+  max-height: 45vh;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.game-feedback p {
+  flex: 1 1 12rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.game-feedback[data-state="success"] {
+  border-color: #4dab76;
+}
+
+.game-feedback[data-state="error"],
+.game-feedback[data-state="unknown"] {
+  border-color: #f47e7e;
+  color: #ffb0b0;
+}
+
+.game-dialog {
+  width: min(32rem, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: clamp(12px, 4vw, 20px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--ink);
+}
+
+.game-dialog::backdrop {
+  background: rgba(5, 8, 14, 0.8);
+}
+
+.game-dialog h2 {
+  margin: 0 0 12px;
+}
+
+.game-dialog input {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.game-dialog .game-feedback {
+  position: sticky;
+  bottom: 0;
+  width: 100%;
+  margin-top: 12px;
+  box-shadow: none;
+}
