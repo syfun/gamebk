@@ -15,14 +15,22 @@ import (
 func New(cfg config.Config, db *bbolt.DB) *gin.Engine {
 	r := gin.Default()
 
-	sub, err := fs.Sub(webui.FS, ".")
+	entries, err := fs.ReadDir(webui.FS, ".")
 	if err != nil {
 		panic(err)
+	}
+	files := http.FS(webui.FS)
+	r.StaticFileFS("/", "games.html", files)
+	// 逐一注册静态资源，避免根路径的通配路由占用 API 路径。
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			r.StaticFileFS("/"+entry.Name(), entry.Name(), files)
+		}
 	}
 	r.GET("/ui", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/ui/")
 	})
-	r.StaticFS("/ui", http.FS(sub))
+	r.StaticFS("/ui", files)
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

@@ -7,9 +7,10 @@ const longName = "北方之旅" + "NorthernAdventure".repeat(8);
 test.describe("手机游戏列表", () => {
   test.use({ isMobile: true, hasTouch: true, viewport: { width: 360, height: 740 } });
 
-  test("打开入口自动查询，空列表可直接新建游戏", async ({ page }) => {
-    await page.goto("/ui/");
+  test("打开根路径自动查询，空列表可直接新建游戏", async ({ page, gamebk }) => {
+    await page.goto("/");
     await expect(page.getByText("还没有游戏", { exact: true })).toBeVisible();
+    await expect(page).toHaveURL(gamebk.baseURL + "/");
     await page.getByRole("region", { name: "还没有游戏" })
       .getByRole("button", { name: "新建游戏" }).click();
     await expect(page.getByRole("dialog", { name: "新建游戏" })).toBeVisible();
@@ -24,7 +25,7 @@ test.describe("手机游戏列表", () => {
     }, { times: 1 });
 
     try {
-      await page.goto("/ui/");
+      await page.goto("/");
       await expect(page.getByRole("status")).toHaveText("正在加载游戏…");
     } finally {
       finishReading();
@@ -49,12 +50,15 @@ test.describe("手机游戏列表", () => {
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
     expect(await game.evaluate((link) => link.scrollWidth)).toBeLessThanOrEqual(360);
     await game.tap();
-    await expect(page).toHaveURL(/\/ui\/game\.html\?id=\d+$/);
+    await expect(page).toHaveURL((url) => url.pathname === "/game.html");
     await expect(page.getByText(longName).first()).toBeVisible();
+    await page.getByRole("link", { name: "返回游戏列表" }).tap();
+    await expect(page).toHaveURL(gamebk.baseURL + "/");
+    await expect(game).toBeVisible();
   });
 
   test("保存响应中断后可刷新核对实际结果并继续填写", async ({ page, gamebk }) => {
-    await page.goto("/ui/");
+    await page.goto("/");
     await page.getByRole("region", { name: "还没有游戏" })
       .getByRole("button", { name: "新建游戏" }).tap();
     const dialog = page.getByRole("dialog", { name: "新建游戏" });
@@ -99,7 +103,7 @@ test.describe("430 像素手机游戏列表", () => {
       hasTouch: false,
     });
     try {
-      await otherPage.goto("/ui/");
+      await otherPage.goto("/");
       await otherPage.getByRole("button", { name: "新建游戏", exact: true }).click();
       const dialog = otherPage.getByRole("dialog", { name: "新建游戏" });
       await dialog.getByLabel("名称", { exact: true }).fill(longName);
@@ -134,7 +138,7 @@ test.describe("430 像素手机游戏列表", () => {
 
   test("短屏表单保存时防止重复提交，服务拒绝后保留输入供重试", async ({ page, gamebk }) => {
     await page.setViewportSize({ width: 430, height: 340 });
-    await page.goto("/ui/");
+    await page.goto("/");
     await page.getByRole("region", { name: "还没有游戏" })
       .getByRole("button", { name: "新建游戏" }).tap();
 
@@ -184,7 +188,7 @@ test("桌面表格完整显示长配置并可编辑和打开游戏", async ({ pa
   await Promise.all([mkdir(saveDir), mkdir(backupRoot)]);
   await createFirstGame(page, { saveDir, backupRoot }, name);
 
-  await page.goto("/ui/");
+  await page.goto("/");
   const table = page.getByRole("table");
   const game = table.getByRole("row").filter({ hasText: name });
   for (const value of [name, saveDir, backupRoot]) {
@@ -209,5 +213,10 @@ test("桌面表格完整显示长配置并可编辑和打开游戏", async ({ pa
   const updatedGame = table.getByRole("row").filter({ hasText: "新地图" });
   await expect(updatedGame.getByRole("cell", { name: gamebk.backupRoot, exact: true })).toBeVisible();
   await updatedGame.getByRole("button", { name: "打开" }).click();
+  await expect(page).toHaveURL((url) => url.pathname === "/game.html");
+
+  await page.goto("/ui");
+  await updatedGame.getByRole("button", { name: "打开" }).click();
   await expect(page).toHaveURL(/\/ui\/game\.html\?id=\d+$/);
+  await expect(page.getByRole("heading", { name: "新地图", exact: true })).toBeVisible();
 });

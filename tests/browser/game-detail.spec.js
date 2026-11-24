@@ -341,7 +341,7 @@ test.describe("手机游戏详情", () => {
     await saveNamedBackup(page, "Z 首次到港");
 
     const editor = await page.context().newPage();
-    await editor.goto("/ui/");
+    await editor.goto("/");
     await openGame(editor, gameName);
     await writeFile(slot, "selected by latest");
     const selected = await saveNamedBackup(editor, "B 离港前");
@@ -461,7 +461,7 @@ test.describe("手机游戏详情", () => {
     await deleteAll.click();
     await expect(dialog).toBeVisible();
     const editor = await page.context().newPage();
-    await editor.goto("/ui/");
+    await editor.goto("/");
     await expect(editor.getByRole("link", { name: gameName, exact: true }))
       .toHaveAccessibleDescription(/^最近备份 /);
     await openGame(editor, gameName);
@@ -611,7 +611,7 @@ test("桌面恢复目标被另一页面删除，可从确认反馈刷新历史",
   await expect(restoreDialog).toHaveAccessibleDescription("整个存档目录将被替换。");
 
   const editor = await page.context().newPage();
-  await editor.goto("/ui/");
+  await editor.goto("/");
   await openGame(editor, gameName);
   const editorRow = editor.getByRole("row").filter({ hasText: deletedName });
   await editorRow.getByRole("button", { name: "删除", exact: true }).click();

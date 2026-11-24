@@ -77,7 +77,7 @@ export const test = base.extend({
 export { expect };
 
 export async function createFirstGame(page, { saveDir, backupRoot }, name) {
-  await page.goto("/ui/");
+  await page.goto("/");
   await page.getByRole("region", { name: "还没有游戏" })
     .getByRole("button", { name: "新建游戏" }).click();
 
